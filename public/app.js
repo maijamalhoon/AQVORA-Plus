@@ -77,7 +77,7 @@ function dashboard(){
     +stat('MODULES','Planned','Dealer management phases ahead');
   return '<div class="stat-grid">'+stats+'</div>'+
     '<div class="banner"><strong>Welcome to AQVORA Plus</strong> This development build implements real server-backed finance vouchers, balanced postings, reversals and reports. Sales, Service and Parts operations are being built in later milestones. Do not enter real dealership data yet.</div>'+
-    (finance()?'<div class="card"><div class="card-head"><h2>Quick Actions</h2></div><div class="card-body"><div class="action-grid">'+
+    (editor()?'<div class="card"><div class="card-head"><h2>Quick Actions</h2></div><div class="card-body"><div class="action-grid">'+
       '<button class="action-tile" data-page="new:JV"><strong>Create Journal Voucher</strong><small>Open →</small></button>'+
       '<button class="action-tile" data-page="vouchers"><strong>Review Vouchers</strong><small>Open →</small></button>'+
       '<button class="action-tile" data-page="trial"><strong>Generate Trial Balance</strong><small>Open →</small></button>'+
@@ -177,7 +177,7 @@ function detail(){
 function render(){
   if(!state.selected)return;
   const p=state.page;
-  const found=navigation().find(x=>x.id===p);
+  const found=navigation().find(x=>x.id===p)||(p==='detail'?{id:'detail',text:'Voucher Details',group:'Financials / Accounts'}:null);
   if(!found){state.page='dashboard';return render();}
   $('crumb').textContent=found.text;$('page-title').textContent=found.text;
   $('breadcrumb-section').textContent=found.group.toUpperCase();
@@ -269,7 +269,7 @@ $('company-select').addEventListener('change',async event=>{
   state.selected=selected;state.page='dashboard';
   try{await refresh();clearNotice();}catch(e){notify(e.message,true);}
 });
-$('mobile-nav').addEventListener('click',()=>$('sidebar').classList.add('open'));
+$('mobile-nav').addEventListener('click',()=>{$('sidebar').classList.add('open');$('overlay').classList.remove('hidden');});
 $('overlay').addEventListener('click',()=>{
   $('sidebar').classList.remove('open');$('overlay').classList.add('hidden');
 });
