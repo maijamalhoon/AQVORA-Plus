@@ -22,7 +22,7 @@ const clearNotice=()=>$('flash').classList.add('hidden');
 const finance=()=>['ADMIN','FINANCE','VIEWER'].includes(state.selected?.role);
 const editor=()=>['ADMIN','FINANCE'].includes(state.selected?.role);
 const documents=[['JV','Journal Voucher'],['CB/R','Cash Book Receipt'],['CB/P','Cash Book Payment'],['BB/R','Bank Book Receipt'],['BB/P','Bank Book Payment']];
-const operations={SALES:['Order Form','Sales Note','Vehicle Delivery','Sales Reports'],SERVICE:['Appointment','Estimate','Job Card','Service Invoice','Day End'],PARTS:['Requisition','Purchase Order','GRN','Part Issue','Stock Report']};
+const operations={SALES:['Order Form','Sales Note','Vehicle Delivery','Sales Reports'],SERVICE:['Appointment','Estimate','Day End'],PARTS:['Requisition','Purchase Order','GRN','Purchase Return','Stock Valuation']};
 function navigation(){
   const items=[{id:'dashboard',text:'Dashboard',group:'Overview'}];
   if(finance()){
@@ -30,6 +30,18 @@ function navigation(){
     if(editor())documents.forEach(([type,text])=>items.push({id:'new:'+type,text,group:'Financials / Accounts'}));
     items.push({id:'trial',text:'Trial Balance',group:'Financial Reports'},{id:'ledger',text:'General Ledger',group:'Financial Reports'},{id:'audit',text:'Audit Trail',group:'Financial Reports'});
   }
+  const modules=[
+    {id:'auto:customers',text:'Customers',group:'CRM',roles:['ADMIN','SALES','SERVICE','FINANCE']},
+    {id:'auto:vehicle-stock',text:'Vehicle Stock',group:'Sales Operations',roles:['ADMIN','SALES','FINANCE']},
+    {id:'auto:sales-bookings',text:'Sales Bookings',group:'Sales Operations',roles:['ADMIN','SALES','FINANCE']},
+    {id:'auto:customer-vehicles',text:'Customer Vehicles',group:'Service Operations',roles:['ADMIN','SERVICE','FINANCE']},
+    {id:'auto:service-jobs',text:'Job Cards',group:'Service Operations',roles:['ADMIN','SERVICE','PARTS','FINANCE']},
+    {id:'auto:service-invoices',text:'Service Invoices',group:'Service Operations',roles:['ADMIN','SERVICE','FINANCE']},
+    {id:'auto:parts',text:'Parts Master',group:'Parts Operations',roles:['ADMIN','PARTS','SERVICE','FINANCE']},
+    {id:'auto:stock-movements',text:'Stock Movements',group:'Parts Operations',roles:['ADMIN','PARTS','SERVICE','FINANCE']},
+    {id:'auto:ar-aging',text:'AR Aging',group:'Financial Reports',roles:['ADMIN','FINANCE']}
+  ];
+  modules.filter(x=>x.roles.includes(state.selected.role)).forEach(x=>items.push(x));
   Object.entries(operations).forEach(([dep,labels])=>{
     if(state.selected.role==='ADMIN'||state.selected.role===dep)
       labels.forEach(text=>items.push({id:'planned:'+dep+':'+text,text,group:dep+' Operations',planned:true}));
@@ -183,7 +195,7 @@ function render(){
   $('breadcrumb-section').textContent=found.group.toUpperCase();
   $('page-subtitle').textContent=p.startsWith('new:')?'Create a voucher with balanced debit and credit lines':'Dealership management workspace';
   renderNav();
-  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():
+  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):
     '<div class="banner"><strong>Planned feature — '+esc(found.text)+'</strong>This function is part of the Dealer Pro parity roadmap, but is not implemented in this development release.</div>';
   if(p.startsWith('new:'))updateTotals();
 }
@@ -197,6 +209,7 @@ async function open(page){
       state.ledger=(await api('/api/reports/ledger?account='+encodeURIComponent(state.ledgerAccount))).rows;
     }
     if(page==='audit')state.audit=(await api('/api/audit')).events;
+    if(page.startsWith('auto:'))await window.AQVORA_AUTO.load(page,api);
   }catch(e){notify(e.message,true);}
   render();
 }
@@ -276,12 +289,16 @@ $('overlay').addEventListener('click',()=>{
 $('nav').addEventListener('click',event=>{
   const b=event.target.closest('[data-page]');if(b)open(b.dataset.page);
 });
-$('view').addEventListener('submit',event=>{if(event.target.id==='voucher-form')saveVoucher(event);});
+$('view').addEventListener('submit',event=>{
+  if(event.target.id==='voucher-form')saveVoucher(event);
+  if(event.target.id==='auto-form')window.AQVORA_AUTO.submit(event,{post,open,notify});
+});
 $('view').addEventListener('input',event=>{if(event.target.closest('#entry-lines'))updateTotals();});
 $('view').addEventListener('click',async event=>{
   const link=event.target.closest('[data-page]');if(link){open(link.dataset.page);return;}
   const b=event.target.closest('[data-action]');if(!b)return;
   const act=b.dataset.action;
+  if(act.startsWith('auto:')){await window.AQVORA_AUTO.act(act.slice(5),b.dataset.id,{post,open,notify});return;}
   if(['view','post','reverse'].includes(act)){await voucherAction(act,b.dataset.id);return;}
   if(act==='new-jv'){await open('new:JV');return;}
   if(act==='go-vouchers'){await open('vouchers');return;}

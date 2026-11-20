@@ -2,6 +2,14 @@
 
 **Independent dealership management system** built separately from the AQVORA Enterprise ERP. The product target is equivalent, observed Dealer Pro business workflows, implemented from scratch with distinct branding. Not affiliated with CIBS or Dealer Pro.
 
+## Phase 3: Automotive operations and receivables (Draft PR #3)
+
+This stacked development branch adds working **customer master, customer vehicles, new-vehicle stock, sales reservations, service job cards, parts receipts/issues, labor-only service invoices, customer payments and current AR aging**. The new browser screens are role-aware, backed by separate company-scoped PostgreSQL tables and server routes. Stock reservation and stock decrement use row-locked transactions; invoice/receipt operations post balanced journals in the same database transaction.
+
+**Still missing for full Dealer Pro parity:** sales invoice and delivery accounting, purchase order/GRN-to-AP integration, parts billing and inventory cost/COGS posting, full tax, credit notes, approval matrix, workshop estimates and comprehensive reports. This remains a **non-production development build**. Do not import production dealership or customer records.
+
+See [Automotive Phase 3](docs/AUTOMOTIVE_PHASE3.md) and [Dealer Pro feature inventory](docs/DEALER_PRO_PARITY.md).
+
 ## Phase 2: Database-backed financial foundation
 
 Implemented in this branch:
@@ -12,7 +20,7 @@ Implemented in this branch:
 - General Ledger, Trial Balance, voucher register/details, audit trail and original responsive browser UI.
 - Automated domain and PostgreSQL-backed integration tests with GitHub Actions.
 
-**NOT PRODUCTION READY:** no invoice/stock integration, attachments, enterprise approval workflows, self-service account administration, secure backup/restore, full department functionality, or operational hardening. The Sales, Service and Parts links show honest Planned states. Never import dealership production or customer data into this test build.
+**NOT PRODUCTION READY:** no invoice/stock integration, attachments, enterprise approval workflows, self-service account administration, secure backup/restore, full department functionality, or operational hardening. Some Sales, Service and Parts workflows are implemented in Phase 3; remaining unavailable workflows are clearly marked Planned. Never import dealership production or customer data into this test build.
 
 ## Start locally
 
@@ -20,7 +28,7 @@ Requires Node.js 22+ and a NEW, dedicated PostgreSQL 15+ database. Never point a
 
 1. npm install
 2. Set DATABASE_URL in your environment, e.g. postgres://postgres:password@localhost:5432/aqvora_plus
-3. npm run db:migrate (once on a fresh database).
+3. npm run db:migrate (version-tracked, idempotent on fresh or fully initialized Phase 2 databases).
 4. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD (12+ characters), optionally BOOTSTRAP_COMPANY_CODE and BOOTSTRAP_COMPANY_NAME.
 5. npm run db:bootstrap
 6. Remove bootstrap password from your environment.
@@ -44,4 +52,4 @@ Mutation requests require X-AQVORA-Request: 1 and same-origin access. Server enf
 
 Before any actual enterprise use: HTTPS and NODE_ENV=production, managed secret storage, distributed login throttling, multi-factor authentication for administrators, permission administration, auditable approvals, production migration tooling, DB backups with restore drills, threat modeling, cross-company penetration tests, reliable financial reporting, deployment hardening and observability. The in-memory login throttle is only a single-process guard.
 
-Follow docs/DEALER_PRO_PARITY.md for reference inventory and docs/SECURITY_AND_ARCHITECTURE.md for architectural guardrails. PR #1 must be integrated before this stacked feature branch can merge into main.
+Follow docs/DEALER_PRO_PARITY.md for observed reference inventory, docs/AUTOMOTIVE_PHASE3.md for current capabilities, and docs/SECURITY_AND_ARCHITECTURE.md for security guardrails. Review PR #2 before stacking PR #3 onto main.
