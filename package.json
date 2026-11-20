@@ -1,7 +1,7 @@
 {
   "name": "aqvora-plus",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -12,7 +12,7 @@
     "db:bootstrap": "node scripts/bootstrap.mjs",
     "test": "node --test test/*.test.mjs",
     "test:integration": "node --test test/integration.test.mjs",
-    "check": "node --check server/logic.mjs && node --check server/api.mjs && node --check server/start.mjs && node --check public/app.js"
+    "check": "node --check server/logic.mjs && node --check server/api.mjs && node --check server/start.mjs && node --check public/app.js && node --check server/automotive-rules.mjs && node --check server/automotive.mjs && node --check public/automotive-ui.js"
   },
   "dependencies": {
     "pg": "^8.13.3"
