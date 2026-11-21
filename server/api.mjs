@@ -71,7 +71,7 @@ async function tx(pool,handler){
 async function identity(pool,req){
   const session=cookie(req,'aqvora_session');
   if(!session||!/^[a-f0-9]{64}$/.test(session))fail(401,'Please sign in');
-  const r=await pool.query('SELECT u.id,u.email FROM sessions s JOIN app_users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true',[hashToken(session)]);
+  const r=await pool.query('SELECT u.id,u.email,u.must_change_password FROM sessions s JOIN app_users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now() AND u.active=true',[hashToken(session)]);
   if(!r.rowCount)fail(401,'Session expired');
   const user=r.rows[0];
   const m=await pool.query('SELECT m.company_id,m.role,m.department_id,c.code AS company_code,c.name AS company_name FROM memberships m JOIN companies c ON c.id=m.company_id WHERE m.user_id=$1 ORDER BY c.name',[user.id]);
@@ -103,7 +103,7 @@ async function route(req,res,pool,production){
   const uri=new URL(req.url||'/','http://localhost'),path=uri.pathname;
   if(path==='/api/health'&&req.method==='GET')return send(res,200,{ok:true,app:'AQVORA Plus'});
   if(!path.startsWith('/api/')){
-    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js','/phase7-ui.js':'phase7-ui.js'};
+    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js','/phase7-ui.js':'phase7-ui.js','/admin-users-ui.js':'admin-users-ui.js'};
     if(!allowed[path]||req.method!=='GET')return send(res,404,{error:'Not found'});
     const filename=allowed[path],content=await readFile(join(publicDir,filename));
     res.writeHead(200,{'content-type':filename.endsWith('.css')?'text/css; charset=utf-8':filename.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});
@@ -132,12 +132,65 @@ async function route(req,res,pool,production){
     sessionCookie(res,'',production,0);return send(res,200,{ok:true});
   }
   const ctx=await identity(pool,req),company=ctx.selected.company_id;
+  if(path==='/api/auth/me'&&req.method==='GET'){
+    return send(res,200,{user:ctx.user,memberships:ctx.memberships,selected:ctx.selected});
+  }
+  if(path==='/api/auth/change-password'&&req.method==='POST'){
+    const data=await readJson(req);
+    if(!data||typeof data.currentPassword!=='string'||typeof data.newPassword!=='string'||
+      data.newPassword.length<12||data.newPassword.length>256||
+      data.newPassword===data.currentPassword)fail(400,'Provide the current password and a different 12–256 character new password');
+    await tx(pool,async db=>{
+      const current=await db.query('SELECT password_hash FROM app_users WHERE id=$1 AND active=true FOR UPDATE',[ctx.user.id]);
+      if(!current.rowCount||!verifyPassword(data.currentPassword,current.rows[0].password_hash))
+        fail(403,'Current password is incorrect');
+      await db.query('UPDATE app_users SET password_hash=$1,must_change_password=false WHERE id=$2',
+        [hashPassword(data.newPassword),ctx.user.id]);
+      await db.query('DELETE FROM sessions WHERE user_id=$1',[ctx.user.id]);
+      await db.query('INSERT INTO audit_events(company_id,actor_id,action,entity_id) VALUES($1,$2,$3,$4)',
+        [company,ctx.user.id,'PASSWORD_CHANGED',ctx.user.id]);
+    });
+    sessionCookie(res,'',production,0);
+    return send(res,200,{ok:true,reauthenticate:true});
+  }
+  if(ctx.user.must_change_password)fail(403,'Change your temporary password before accessing the company');
+  if(path==='/api/admin/users'&&req.method==='GET'){
+    permission(ctx,'company:manage');
+    const r=await pool.query(
+      'SELECT u.id,u.email,u.active,u.must_change_password,m.role FROM memberships m JOIN app_users u ON u.id=m.user_id WHERE m.company_id=$1 ORDER BY u.email',
+      [company]);
+    return send(res,200,{users:r.rows});
+  }
+  if(path==='/api/admin/users'&&req.method==='POST'){
+    permission(ctx,'company:manage');
+    const d=await readJson(req);
+    const email=typeof d?.email==='string'?d.email.trim().toLowerCase():'';
+    const role=d?.role,temporaryPassword=d?.temporaryPassword;
+    if(email.length<5||email.length>254||!/^\S+@\S+\.\S+$/.test(email)||
+       !['FINANCE','SALES','SERVICE','PARTS','VIEWER'].includes(role)||
+       typeof temporaryPassword!=='string'||
+       temporaryPassword.length<14||temporaryPassword.length>256){
+      fail(400,'Provide a new user email, non-Admin role and a 14–256 character temporary password');
+    }
+    const result=await tx(pool,async db=>{
+      const existing=await db.query('SELECT id FROM app_users WHERE email=$1 FOR UPDATE',[email]);
+      if(existing.rowCount)fail(409,'This user email already exists; contact authorized account administration');
+      const user=await db.query(
+        'INSERT INTO app_users(email,password_hash,must_change_password) VALUES($1,$2,true) RETURNING id,email,must_change_password',
+        [email,hashPassword(temporaryPassword)]);
+      await db.query('INSERT INTO memberships(company_id,user_id,role) VALUES($1,$2,$3)',
+        [company,user.rows[0].id,role]);
+      await db.query('INSERT INTO audit_events(company_id,actor_id,action,entity_id,meta) VALUES($1,$2,$3,$4,$5::jsonb)',
+        [company,ctx.user.id,'STAFF_USER_CREATED',user.rows[0].id,JSON.stringify({role})]);
+      return {...user.rows[0],role};
+    });
+    return send(res,201,result);
+  }
   if(await handlePhase7Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase6Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase5Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
-  if(path==='/api/auth/me'&&req.method==='GET')return send(res,200,{user:ctx.user,memberships:ctx.memberships,selected:ctx.selected});
   if(path==='/api/accounts'&&req.method==='GET'){
     permission(ctx,'vouchers:read');
     const r=await pool.query('SELECT code,name,kind,NOT (code=ANY($2::text[])) AS manual_entry_allowed FROM accounts WHERE company_id=$1 AND active=true ORDER BY code',[company,SYSTEM_POSTED_CONTROL_CODES]);

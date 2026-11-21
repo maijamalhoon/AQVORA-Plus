@@ -12,6 +12,7 @@
 7. Supplier parts refund approvals, per-company caps and AP/stock/Bank accounting.
 8. Source-controlled GL account restrictions, malformed-input handling and manual JV UI protection.
 9. Create-only company bootstrap, append-only audit history and regression tests for credential/role protection.
+10. Admin-only new staff account creation, mandatory initial-password rotation, session revocation and tenant/role permission tests.
 
 ## Required quality gate
 - Run npm install, npm run check, npm run db:migrate, npm test on an isolated synthetic test DB.
@@ -35,3 +36,9 @@
 - All audit events are append-only in PostgreSQL after migration 007.
 
 **PR sequence:** Review and integrate stages in dependency order. A green CI check does not imply this is suitable for production. Only verified sample/development data should be used until a formal go-live approval process is completed.
+
+## Staff provisioning and first login (development)
+
+- Admin can create **new** FINANCE/SALES/SERVICE/PARTS/VIEWER users for their own company. Duplicate emails and assigning existing identities to other companies are intentionally blocked. ADMIN role cannot be created through this basic endpoint.
+- Staff receive an out-of-band temporary 14+ character password supplied by the admin. They **must** change it using their own selected password on first login. Every financial/business API remains blocked until the change, and all old sessions are invalidated when it succeeds.
+- This is **not a secure emailed invitation system**, nor independent proof the beneficiary is the rightful user. No MFA, mandatory password expiry, recovery/invite tokens, self-service deactivate and access-review approval exist. Administrative staff provisioning remains an operational process requiring independent organizational controls.

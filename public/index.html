@@ -11,6 +11,7 @@
   <script src="/phase5-ui.js" defer></script>
   <script src="/phase6-ui.js" defer></script>
   <script src="/phase7-ui.js" defer></script>
+  <script src="/admin-users-ui.js" defer></script>
   <script src="/app.js" defer></script>
 </head>
 <body>
@@ -26,6 +27,22 @@
         <div class="form-error" id="login-error" role="alert"></div>
       </form>
       <small>Independent development environment · Authorized personnel only</small>
+    </div>
+  </div>
+
+  <div id="first-login" class="login-wrap hidden">
+    <div class="login-card">
+      <div class="brand-mark large">A<span>+</span></div>
+      <h1>Secure <span>Your Account</span></h1>
+      <p>YOUR TEMPORARY PASSWORD MUST BE CHANGED BEFORE WORK</p>
+      <form id="first-login-form" autocomplete="off">
+        <label>Temporary password<input name="currentPassword" type="password" autocomplete="current-password" required/></label>
+        <label>New password<input name="newPassword" type="password" autocomplete="new-password" minlength="12" required/></label>
+        <label>Confirm new password<input name="confirmPassword" type="password" autocomplete="new-password" minlength="12" required/></label>
+        <button type="submit" class="primary">Secure Account</button>
+        <div id="first-login-error" class="form-error" role="alert"></div>
+      </form>
+      <small>All previous sessions are revoked when your password changes.</small>
     </div>
   </div>
 

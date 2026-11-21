@@ -126,3 +126,7 @@ For existing companies upgrading from Phase 3, configure PHASE4_COMPANY_CODE and
 Phase 5 setup: After migration, ensure control accounts 2010201001 (Sales Tax Control) and 5010601001 (Purchase Price Variance) exist in every upgraded company; run npm run db:controls with PHASE4_COMPANY_CODE set to that company. Tax rates must be established from legally verified local requirements—no official tax defaults are shipped.
 
 **Release gate:** Run npm run release:check for the development readiness report. This prototype does not declare production readiness. See docs/RELEASE_READINESS.md.
+
+### Phase 10 — Staff onboarding and first-login credentials
+
+Admin → Staff & Permissions can create new non-Admin staff accounts in the selected company. A user cannot access accounting or operations using a temporary password: they must rotate it at first sign-in, after which all previous sessions are revoked. Duplicate emails and cross-company silent memberships are rejected. This is a development workflow, **not** enterprise SSO, MFA or a vetted invitation system.
