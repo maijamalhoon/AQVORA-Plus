@@ -1,7 +1,7 @@
 {
   "name": "aqvora-plus",
   "private": true,
-  "version": "0.7.0",
+  "version": "0.8.0",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -12,7 +12,7 @@
     "db:bootstrap": "node scripts/bootstrap.mjs",
     "test": "node --test test/*.test.mjs",
     "test:integration": "node --test test/integration.test.mjs",
-    "check": "node --check server/logic.mjs && node --check server/api.mjs && node --check server/start.mjs && node --check public/app.js && node --check server/automotive-rules.mjs && node --check server/automotive.mjs && node --check public/automotive-ui.js && node --check server/finance-operations.mjs && node --check public/finance-ui.js && node --check scripts/seed-phase4-accounts.mjs && node --check server/phase5.mjs && node --check public/phase5-ui.js && node --check server/phase6.mjs && node --check public/phase6-ui.js && node --check server/phase7.mjs && node --check public/phase7-ui.js && node --check server/ledger-controls.mjs && node --check scripts/bootstrap.mjs && node --check scripts/migrate.mjs && node --check scripts/release-gate.mjs",
+    "check": "node --check server/logic.mjs && node --check server/api.mjs && node --check server/start.mjs && node --check public/app.js && node --check server/automotive-rules.mjs && node --check server/automotive.mjs && node --check public/automotive-ui.js && node --check server/finance-operations.mjs && node --check public/finance-ui.js && node --check scripts/seed-phase4-accounts.mjs && node --check server/phase5.mjs && node --check public/phase5-ui.js && node --check server/phase6.mjs && node --check public/phase6-ui.js && node --check server/phase7.mjs && node --check public/phase7-ui.js && node --check server/ledger-controls.mjs && node --check scripts/bootstrap.mjs && node --check scripts/migrate.mjs && node --check scripts/release-gate.mjs && node --check public/admin-users-ui.js",
     "db:controls": "node scripts/seed-phase4-accounts.mjs",
     "release:check": "node scripts/release-gate.mjs"
   },

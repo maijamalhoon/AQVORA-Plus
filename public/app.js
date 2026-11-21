@@ -66,6 +66,7 @@ function navigation(){
     {id:'phase7:audit',text:'Supplier Refund Audit',group:'Financial Reports',roles:['ADMIN','FINANCE']}
   ];
   modules.concat(controls,phase5,phase6,phase7).filter(x=>x.roles.includes(state.selected.role)).forEach(x=>items.push(x));
+  if(state.selected.role==='ADMIN')items.push({id:'admin:users',text:'Staff & Permissions',group:'Administration'});
   Object.entries(operations).forEach(([dep,labels])=>{
     if(state.selected.role==='ADMIN'||state.selected.role===dep)
       labels.forEach(text=>items.push({id:'planned:'+dep+':'+text,text,group:dep+' Operations',planned:true}));
@@ -79,11 +80,16 @@ function renderNav(){
   }).join('');
 }
 function showLogin(){
-  $('shell').classList.add('hidden');$('login').classList.remove('hidden');
+  $('shell').classList.add('hidden');$('first-login').classList.add('hidden');$('login').classList.remove('hidden');
   state.user=null;state.selected=null;
 }
+function showFirstLogin(){
+  $('shell').classList.add('hidden');
+  $('login').classList.add('hidden');
+  $('first-login').classList.remove('hidden');
+}
 function showShell(){
-  $('login').classList.add('hidden');$('shell').classList.remove('hidden');
+  $('first-login').classList.add('hidden');$('login').classList.add('hidden');$('shell').classList.remove('hidden');
   $('role-chip').textContent=state.selected.role;
   $('company-select').innerHTML=state.memberships.map(m=>'<option value="'+esc(m.company_id)+'" '+(m.company_id===state.selected.company_id?'selected':'')+'>'+esc(m.company_name)+'</option>').join('');
   $('today').textContent=today();
@@ -91,6 +97,7 @@ function showShell(){
 }
 async function refresh(){
   const me=await api('/api/auth/me');state.user=me.user;state.memberships=me.memberships;state.selected=me.selected;
+  if(state.user.must_change_password){showFirstLogin();return;}
   if(finance()){
     const data=await Promise.all([api('/api/accounts'),api('/api/departments'),api('/api/vouchers'),api('/api/reports/trial-balance')]);
     state.accounts=data[0].accounts;state.departments=data[1].departments;state.vouchers=data[2].vouchers;state.report=data[3].rows;
@@ -222,7 +229,7 @@ function render(){
   $('breadcrumb-section').textContent=found.group.toUpperCase();
   $('page-subtitle').textContent=p.startsWith('new:')?'Create a voucher with balanced debit and credit lines':'Dealership management workspace';
   renderNav();
-  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):p.startsWith('fin4:')?window.AQVORA_FIN4.render(p,state.selected.role):p.startsWith('phase5:')?window.AQVORA_PHASE5.render(p,state.selected.role):p.startsWith('phase6:')?window.AQVORA_PHASE6.render(p,state.selected.role):p.startsWith('phase7:')?window.AQVORA_PHASE7.render(p,state.selected.role):
+  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):p.startsWith('fin4:')?window.AQVORA_FIN4.render(p,state.selected.role):p.startsWith('phase5:')?window.AQVORA_PHASE5.render(p,state.selected.role):p.startsWith('phase6:')?window.AQVORA_PHASE6.render(p,state.selected.role):p.startsWith('phase7:')?window.AQVORA_PHASE7.render(p,state.selected.role):p==='admin:users'?window.AQVORA_USERS.render(p,state.selected.role):
     '<div class="banner"><strong>Planned feature — '+esc(found.text)+'</strong>This function is part of the Dealer Pro parity roadmap, but is not implemented in this development release.</div>';
   if(p.startsWith('new:'))updateTotals();
 }
@@ -241,6 +248,7 @@ async function open(page){
     if(page.startsWith('phase5:'))await window.AQVORA_PHASE5.load(page,api);
     if(page.startsWith('phase6:'))await window.AQVORA_PHASE6.load(page,api);
     if(page.startsWith('phase7:'))await window.AQVORA_PHASE7.load(page,api);
+    if(page==='admin:users')await window.AQVORA_USERS.load(page,api);
   }catch(e){notify(e.message,true);}
   render();
 }
@@ -303,6 +311,23 @@ $('login-form').addEventListener('submit',async event=>{
   try{await post('/api/auth/login',{email:form.get('email'),password:form.get('password')});await refresh();$('login-error').textContent='';}
   catch(e){$('login-error').textContent=e.message;}
 });
+$('first-login-form').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const data=Object.fromEntries(new FormData(event.target).entries());
+  const alert=$('first-login-error');
+  if(data.newPassword!==data.confirmPassword){alert.textContent='New passwords do not match';return;}
+  if(data.newPassword.length<12){alert.textContent='New password must be at least 12 characters';return;}
+  const submit=event.target.querySelector('button[type=submit]');
+  submit.disabled=true;
+  try{
+    await post('/api/auth/change-password',{currentPassword:data.currentPassword,newPassword:data.newPassword});
+    event.target.reset();
+    showLogin();
+    $('login-error').textContent='Password changed. Sign in with your new password.';
+    alert.textContent='';
+  }catch(error){alert.textContent=error.message;}
+  finally{submit.disabled=false;}
+});
 $('logout').addEventListener('click',async()=>{
   try{await post('/api/auth/logout',{});}catch{}
   showLogin();
@@ -327,6 +352,7 @@ $('view').addEventListener('submit',event=>{
   if(event.target.id==='phase5-form')window.AQVORA_PHASE5.submit(event,{post,open,notify});
   if(event.target.id==='phase6-form')window.AQVORA_PHASE6.submit(event,{post,open,notify});
   if(event.target.id==='phase7-form')window.AQVORA_PHASE7.submit(event,{post,open,notify});
+  if(event.target.id==='staff-provision-form')window.AQVORA_USERS.submit(event,{post,open,notify});
 });
 $('view').addEventListener('input',event=>{if(event.target.closest('#entry-lines'))updateTotals();});
 $('view').addEventListener('click',async event=>{
