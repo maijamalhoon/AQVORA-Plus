@@ -198,7 +198,11 @@ export async function handleBankReconciliationApi({req,res,pool,ctx,path,send,fa
  if(finalize&&req.method==='POST'){
   checker();
   const result=await tx(pool,async db=>{
+   // Match the account-row lock ordering used by bank postings and imports.
+   const bank=await bankAccount(db);
+   await db.query('SELECT id FROM accounts WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,bank.id]);
    const b=await getBatch(db,finalize[1],true);
+   if(b.account_id!==bank.id)fail(409,'Selected reconciliation account differs from the active bank control account');
    if(b.status!=='DRAFT')fail(409,'Statement has already been finalized');
    if(b.imported_by===user)fail(403,'The same person may not import and approve the statement');
    const current=await report(db,b);

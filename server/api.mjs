@@ -95,6 +95,17 @@ async function postExisting(db,ctx,v){
   if(v.status!=='DRAFT')fail(409,'Already posted');
   const company=ctx.selected.company_id;
   await openPeriod(db,company,v.voucher_date);
+  // Serialize financial posting with bank reconciliation finalization.
+  // Do not use DISTINCT with FOR UPDATE (PostgreSQL disallows the combination).
+  const bankLines=await db.query(
+    "SELECT a.id FROM accounts a WHERE a.company_id=$1 AND a.code='1020402001' AND EXISTS (SELECT 1 FROM voucher_lines l WHERE l.company_id=a.company_id AND l.account_id=a.id AND l.voucher_id=$2) FOR UPDATE OF a",
+    [company,v.id]);
+  if(bankLines.rowCount){
+    const locked=await db.query(
+      "SELECT 1 FROM brs_batches WHERE company_id=$1 AND account_id=$2 AND status='FINALIZED' AND ends_on >= $3 LIMIT 1",
+      [company,bankLines.rows[0].id,v.voucher_date]);
+    if(locked.rowCount)fail(409,'Bank posting falls inside a finalized reconciliation period');
+  }
   const number=await nextNumber(db,company,v.voucher_type,v.voucher_date);
   await db.query('UPDATE vouchers SET status=$1,voucher_number=$2,posted_by=$3,posted_at=now() WHERE company_id=$4 AND id=$5',['POSTED',number,ctx.user.id,company,v.id]);
   await db.query('INSERT INTO audit_events(company_id,actor_id,action,entity_id,meta) VALUES($1,$2,$3,$4,$5::jsonb)',[company,ctx.user.id,'VOUCHER_POSTED',v.id,JSON.stringify({number})]);
@@ -265,6 +276,7 @@ async function route(req,res,pool,production){
         " OR EXISTS(SELECT 1 FROM vehicle_refund_disbursements WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM purchase_returns WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM supplier_refund_receipts WHERE company_id=$1 AND voucher_id=$2)"+
+        " OR EXISTS(SELECT 1 FROM brs_matches m JOIN voucher_lines l ON l.company_id=m.company_id AND l.id=m.voucher_line_id WHERE m.company_id=$1 AND l.voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM vehicle_sales_payments WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM stock_movements WHERE company_id=$1 AND accounting_voucher_id=$2)) AS linked",
         [company,original.id]);
