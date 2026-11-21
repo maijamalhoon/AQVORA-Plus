@@ -131,6 +131,11 @@ test('Phase 11: two-stage posted-bank-ledger reconciliation preserves outstandin
  assert.equal((await post('/api/brs/batches/'+id+'/finalize',{},'ADMIN')).status,409);
  assert.equal((await post('/api/brs/batches/'+id+'/unmatch',{statementLineId:bankTransaction})).status,409);
  await assert.rejects(pool.query('DELETE FROM brs_statement_lines WHERE id=$1',[bankTransaction]),/immutable/);
+ await assert.rejects(
+  pool.query(
+   'INSERT INTO brs_statement_lines(company_id,batch_id,account_id,line_number,bank_transaction_id,value_date,amount_paisa,description) VALUES($1,$2,$3,2,$4,$5,100,$6)',
+   [company,id,bankId,'POST-CLOSE-'+tag,'2026-11-20','Illegal insertion into finalized statement']
+  ),/finalized BRS batch/,'Post-finalization direct SQL insertion must be blocked');
 
  // A posted Bank movement within a finalized statement cutoff is disallowed.
  const backdated=await post('/api/vouchers',{type:'JV',department:'FINANCE',date:'2026-11-20',

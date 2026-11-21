@@ -79,7 +79,22 @@ END $$;
 CREATE TRIGGER brs_batches_guard BEFORE UPDATE OR DELETE ON brs_batches
  FOR EACH ROW EXECUTE FUNCTION brs_batch_guard();
 
-CREATE FUNCTION brs_statement_line_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION brs_statement_insert_guard() RETURNS trigger LANGUAGE plpgsql AS $
+DECLARE b brs_batches%ROWTYPE;
+BEGIN
+ SELECT * INTO b FROM brs_batches WHERE company_id=NEW.company_id AND id=NEW.batch_id FOR UPDATE;
+ IF NOT FOUND OR b.status<>'DRAFT' THEN
+   RAISE EXCEPTION 'Cannot insert bank lines into a missing or finalized BRS batch';
+ END IF;
+ IF NEW.account_id<>b.account_id OR NEW.value_date<b.starts_on OR NEW.value_date>b.ends_on THEN
+   RAISE EXCEPTION 'Bank statement movement must use its own account and statement period';
+ END IF;
+ RETURN NEW;
+END $;
+CREATE TRIGGER brs_statement_insert_guard BEFORE INSERT ON brs_statement_lines
+ FOR EACH ROW EXECUTE FUNCTION brs_statement_insert_guard();
+
+CREATE FUNCTION brs_statement_line_guard() RETURNS trigger LANGUAGE plpgsql AS $
 BEGIN RAISE EXCEPTION 'Imported bank statement lines are immutable'; END $$;
 CREATE TRIGGER brs_statement_lines_append_only BEFORE UPDATE OR DELETE ON brs_statement_lines
  FOR EACH ROW EXECUTE FUNCTION brs_statement_line_guard();
