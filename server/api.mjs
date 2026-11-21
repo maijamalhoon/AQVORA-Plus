@@ -140,7 +140,7 @@ async function route(req,res,pool,production){
   if(path==='/api/auth/me'&&req.method==='GET')return send(res,200,{user:ctx.user,memberships:ctx.memberships,selected:ctx.selected});
   if(path==='/api/accounts'&&req.method==='GET'){
     permission(ctx,'vouchers:read');
-    const r=await pool.query('SELECT code,name,kind FROM accounts WHERE company_id=$1 AND active=true ORDER BY code',[company]);
+    const r=await pool.query('SELECT code,name,kind,NOT (code=ANY($2::text[])) AS manual_entry_allowed FROM accounts WHERE company_id=$1 AND active=true ORDER BY code',[company,SYSTEM_POSTED_CONTROL_CODES]);
     return send(res,200,{accounts:r.rows});
   }
   if(path==='/api/departments'&&req.method==='GET'){

@@ -66,6 +66,12 @@ test('API blocks manual control-account vouchers and legacy drafts, preserves or
  assert.equal((await call('/api/vouchers',{method:'POST',body:null})).status,400);
  assert.equal((await call('/api/vouchers',{method:'POST',body:{type:'JV'}})).status,400);
  assert.equal((await call('/api/vouchers',{tenant:other})).status,403);
+ const accountList=await call('/api/accounts');
+ assert.equal(accountList.status,200);
+ for(const protectedCode of SYSTEM_POSTED_CONTROL_CODES){
+   assert.equal(accountList.data.accounts.find(x=>x.code===protectedCode).manual_entry_allowed,false);
+ }
+ assert.equal(accountList.data.accounts.find(x=>x.code==='1020402001').manual_entry_allowed,true);
  const draft=(debitCode,creditCode='3010101001')=>({
    type:'JV',department:'FINANCE',date:'2026-11-20',narrative:'Finance QA manual posting',
    lines:[{accountCode:debitCode,debit:'1.00',credit:'0'},
