@@ -10,6 +10,7 @@ import {handlePhase4Api} from './finance-operations.mjs';
 import {handlePhase5Api} from './phase5.mjs';
 import {handlePhase6Api} from './phase6.mjs';
 import {handlePhase7Api} from './phase7.mjs';
+import {SYSTEM_POSTED_CONTROL_CODES,blockedControlCodes} from './ledger-controls.mjs';
 
 const {Pool}=pg, publicDir=fileURLToPath(new URL('../public/',import.meta.url));
 const uuid=/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
@@ -114,7 +115,7 @@ async function route(req,res,pool,production){
     let state=attempts.get(ip)||{count:0,expires:now+600000};
     if(now>state.expires)state={count:0,expires:now+600000};
     if(state.count>=10)fail(429,'Too many login attempts');
-    const data=await readJson(req),email=typeof data.email==='string'?data.email.trim().toLowerCase():'',password=data.password;
+    const data=await readJson(req),email=typeof data?.email==='string'?data.email.trim().toLowerCase():'',password=data?.password;
     if(email.length>254||typeof password!=='string'||password.length>256)fail(400,'Invalid credentials');
     const result=await pool.query('SELECT id,password_hash FROM app_users WHERE email=$1 AND active=true',[email]);
     if(!result.rowCount||!verifyPassword(password,result.rows[0].password_hash)){
@@ -153,7 +154,12 @@ async function route(req,res,pool,production){
     return send(res,200,{vouchers:r.rows});
   }
   if(path==='/api/vouchers'&&req.method==='POST'){
-    permission(ctx,'vouchers:create');const data=validateDraft(await readJson(req));
+    permission(ctx,'vouchers:create');
+    const input=await readJson(req);
+    let data;
+    try{data=validateDraft(input);}catch(error){fail(400,error.message);}
+    const blocked=blockedControlCodes(data.lines.map(line=>line.code));
+    if(blocked.length)fail(409,'Source-controlled GL accounts cannot be entered through manual vouchers: '+blocked.join(', '));
     const id=await tx(pool,async db=>{
       const dept=await db.query('SELECT id FROM departments WHERE company_id=$1 AND code=$2',[company,data.department]);
       if(!dept.rowCount)fail(400,'Unknown department');
@@ -176,6 +182,10 @@ async function route(req,res,pool,production){
     const number=await tx(pool,async db=>{
       const r=await db.query('SELECT id,voucher_type,voucher_date::text,status FROM vouchers WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,post[1]]);
       if(!r.rowCount)fail(404,'Voucher not found');
+      const reserved=await db.query(
+        'SELECT DISTINCT a.code FROM voucher_lines l JOIN accounts a ON a.company_id=l.company_id AND a.id=l.account_id WHERE l.company_id=$1 AND l.voucher_id=$2 AND a.code=ANY($3::text[]) ORDER BY a.code',
+        [company,post[1],SYSTEM_POSTED_CONTROL_CODES]);
+      if(reserved.rowCount)fail(409,'Manual posting to source-controlled GL accounts is blocked: '+reserved.rows.map(x=>x.code).join(', '));
       return postExisting(db,ctx,r.rows[0]);
     });
     return send(res,200,{status:'POSTED',number});
