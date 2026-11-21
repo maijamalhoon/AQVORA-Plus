@@ -63,7 +63,7 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
   }
   if(path==='/api/finance4/purchases'&&get){
     mustRead();
-    const r=await pool.query("SELECT b.id,b.reference,b.supplier_invoice_no,b.bill_type,b.invoice_date::text,b.due_date::text,b.amount_paisa::text,b.paid_paisa::text,(b.amount_paisa-b.credited_paisa-b.paid_paisa)::text AS outstanding_paisa,b.credited_paisa::text,b.returned_qty,s.name AS supplier_name,b.quantity FROM purchase_bills b JOIN suppliers s ON s.company_id=b.company_id AND s.id=b.supplier_id WHERE b.company_id=$1 ORDER BY b.created_at DESC LIMIT 200",[company]);
+    const r=await pool.query("SELECT b.id,b.reference,b.supplier_invoice_no,b.bill_type,b.invoice_date::text,b.due_date::text,b.amount_paisa::text,b.paid_paisa::text,(b.amount_paisa-b.credited_paisa-b.paid_paisa+b.refunded_paisa)::text AS outstanding_paisa,b.refunded_paisa::text,b.credited_paisa::text,b.returned_qty,s.name AS supplier_name,b.quantity FROM purchase_bills b JOIN suppliers s ON s.company_id=b.company_id AND s.id=b.supplier_id WHERE b.company_id=$1 ORDER BY b.created_at DESC LIMIT 200",[company]);
     send(res,200,{purchases:r.rows});return true;
   }
   const vehiclePurchase=path==='/api/finance4/purchases/vehicle'&&post;
@@ -274,7 +274,7 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
     };
     const arService=await sum('SELECT coalesce(sum(labor_amount_paisa-paid_paisa),0)::text AS total FROM service_invoices WHERE company_id=$1');
     const arVehicle=await sum('SELECT coalesce(sum(gross_amount_paisa-credited_net_paisa-credited_tax_paisa-paid_paisa),0)::text AS total FROM vehicle_sales_invoices WHERE company_id=$1');
-    const ap=await sum('SELECT coalesce(sum(amount_paisa-credited_paisa-paid_paisa),0)::text AS total FROM purchase_bills WHERE company_id=$1');
+    const ap=await sum('SELECT coalesce(sum(amount_paisa-credited_paisa-paid_paisa+refunded_paisa),0)::text AS total FROM purchase_bills WHERE company_id=$1');
     const tax=await sum('SELECT coalesce(sum(sales_tax_paisa-credited_tax_paisa),0)::text AS total FROM vehicle_sales_invoices WHERE company_id=$1');
     const vin=await sum("SELECT coalesce(sum(purchase_cost_paisa),0)::text AS total FROM vehicle_stock WHERE company_id=$1 AND status IN ('IN_STOCK','RESERVED') AND acquisition_voucher_id IS NOT NULL");
     const parts=await sum("SELECT coalesce(sum(inventory_value_paisa),0)::text AS total FROM parts WHERE company_id=$1 AND valuation_mode='POSTED'");

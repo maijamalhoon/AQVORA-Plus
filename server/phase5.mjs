@@ -207,7 +207,7 @@ export async function handlePhase5Api({req,res,pool,ctx,path,send,fail,readJson,
  if(path==='/api/phase5/reports/ap-aging'&&get){
    finance();
    const r=await pool.query(
-     "SELECT b.reference,b.due_date::text,s.name AS supplier_name,b.bill_type,(b.amount_paisa-b.credited_paisa-b.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-b.due_date) AS days_overdue FROM purchase_bills b JOIN suppliers s ON s.company_id=b.company_id AND s.id=b.supplier_id WHERE b.company_id=$1 AND b.amount_paisa>b.credited_paisa+b.paid_paisa ORDER BY b.due_date,b.reference LIMIT 500",
+     "SELECT b.reference,b.due_date::text,s.name AS supplier_name,b.bill_type,(b.amount_paisa-b.credited_paisa-b.paid_paisa+b.refunded_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-b.due_date) AS days_overdue FROM purchase_bills b JOIN suppliers s ON s.company_id=b.company_id AND s.id=b.supplier_id WHERE b.company_id=$1 AND b.amount_paisa+b.refunded_paisa>b.credited_paisa+b.paid_paisa ORDER BY b.due_date,b.reference LIMIT 500",
      [company]);
    send(res,200,{rows:r.rows,scope:'CURRENT_OUTSTANDING_ONLY'});return true;
  }
