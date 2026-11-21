@@ -147,3 +147,5 @@ See [Phase 11 BRS workflow and limitations](docs/PHASE11_BANK_RECONCILIATION.md)
 Admin → Staff & Permissions can create new non-Admin staff accounts in the selected company. A user cannot access accounting or operations using a temporary password: they must rotate it at first sign-in, after which all previous sessions are revoked. Duplicate emails and cross-company silent memberships are rejected. This is a development workflow, **not** enterprise SSO, MFA or a vetted invitation system.
 
 For a local Windows development setup, see docs/WINDOWS_DEMO_QUICKSTART.md. The checked-in .env.example uses placeholders only; keep real credentials outside Git.
+
+**Vercel preview adapter:** server.mjs serves browser + API on Node.js Express. See docs/VERCEL_DEMO_PREVIEW.md. An isolated PostgreSQL database and migrations are required before sign-in/finance workflows function. Database status: /api/demo-status.
