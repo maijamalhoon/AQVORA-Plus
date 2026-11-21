@@ -10,6 +10,7 @@ import {handlePhase4Api} from './finance-operations.mjs';
 import {handlePhase5Api} from './phase5.mjs';
 import {handlePhase6Api} from './phase6.mjs';
 import {handlePhase7Api} from './phase7.mjs';
+import {handleBankReconciliationApi} from './bank-reconciliation.mjs';
 import {SYSTEM_POSTED_CONTROL_CODES,blockedControlCodes} from './ledger-controls.mjs';
 
 const {Pool}=pg, publicDir=fileURLToPath(new URL('../public/',import.meta.url));
@@ -94,6 +95,17 @@ async function postExisting(db,ctx,v){
   if(v.status!=='DRAFT')fail(409,'Already posted');
   const company=ctx.selected.company_id;
   await openPeriod(db,company,v.voucher_date);
+  // Serialize financial posting with bank reconciliation finalization.
+  // Do not use DISTINCT with FOR UPDATE (PostgreSQL disallows the combination).
+  const bankLines=await db.query(
+    "SELECT a.id FROM accounts a WHERE a.company_id=$1 AND a.code='1020402001' AND EXISTS (SELECT 1 FROM voucher_lines l WHERE l.company_id=a.company_id AND l.account_id=a.id AND l.voucher_id=$2) FOR UPDATE OF a",
+    [company,v.id]);
+  if(bankLines.rowCount){
+    const locked=await db.query(
+      "SELECT 1 FROM brs_batches WHERE company_id=$1 AND account_id=$2 AND status='FINALIZED' AND ends_on >= $3 LIMIT 1",
+      [company,bankLines.rows[0].id,v.voucher_date]);
+    if(locked.rowCount)fail(409,'Bank posting falls inside a finalized reconciliation period');
+  }
   const number=await nextNumber(db,company,v.voucher_type,v.voucher_date);
   await db.query('UPDATE vouchers SET status=$1,voucher_number=$2,posted_by=$3,posted_at=now() WHERE company_id=$4 AND id=$5',['POSTED',number,ctx.user.id,company,v.id]);
   await db.query('INSERT INTO audit_events(company_id,actor_id,action,entity_id,meta) VALUES($1,$2,$3,$4,$5::jsonb)',[company,ctx.user.id,'VOUCHER_POSTED',v.id,JSON.stringify({number})]);
@@ -103,7 +115,7 @@ async function route(req,res,pool,production){
   const uri=new URL(req.url||'/','http://localhost'),path=uri.pathname;
   if(path==='/api/health'&&req.method==='GET')return send(res,200,{ok:true,app:'AQVORA Plus'});
   if(!path.startsWith('/api/')){
-    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js','/phase7-ui.js':'phase7-ui.js','/admin-users-ui.js':'admin-users-ui.js'};
+    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js','/phase7-ui.js':'phase7-ui.js','/admin-users-ui.js':'admin-users-ui.js','/brs-ui.js':'brs-ui.js'};
     if(!allowed[path]||req.method!=='GET')return send(res,404,{error:'Not found'});
     const filename=allowed[path],content=await readFile(join(publicDir,filename));
     res.writeHead(200,{'content-type':filename.endsWith('.css')?'text/css; charset=utf-8':filename.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});
@@ -186,6 +198,7 @@ async function route(req,res,pool,production){
     });
     return send(res,201,result);
   }
+  if(await handleBankReconciliationApi({req,res,pool,ctx,path,send,fail,readJson,tx}))return;
   if(await handlePhase7Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase6Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase5Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
@@ -263,6 +276,7 @@ async function route(req,res,pool,production){
         " OR EXISTS(SELECT 1 FROM vehicle_refund_disbursements WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM purchase_returns WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM supplier_refund_receipts WHERE company_id=$1 AND voucher_id=$2)"+
+        " OR EXISTS(SELECT 1 FROM brs_matches m JOIN voucher_lines l ON l.company_id=m.company_id AND l.id=m.voucher_line_id WHERE m.company_id=$1 AND l.voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM vehicle_sales_payments WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM stock_movements WHERE company_id=$1 AND accounting_voucher_id=$2)) AS linked",
         [company,original.id]);

@@ -13,6 +13,7 @@
 8. Source-controlled GL account restrictions, malformed-input handling and manual JV UI protection.
 9. Create-only company bootstrap, append-only audit history and regression tests for credential/role protection.
 10. Admin-only new staff account creation, mandatory initial-password rotation, session revocation and tenant/role permission tests.
+11. Finance CSV-based BRS import/matching, book-versus-bank control, independent Admin finalization, immutable reconciliation history and backdated bank posting guard.
 
 ## Required quality gate
 - Run npm install, npm run check, npm run db:migrate, npm test on an isolated synthetic test DB.
@@ -46,3 +47,7 @@
 ## Consolidated review candidate
 
 The repository can aggregate the stacked development stages into one Draft PR targeting the main branch. Treat that PR as a **readable complete prototype snapshot**, not approval for production: the release gate in CI verifies required source files and explicitly keeps production_ready=false. Independent review must verify security and accounting assumptions before promotion.
+
+## Phase 11 Bank Reconciliation (development)
+
+The BRS module imports user-provided statements, verifies statement arithmetic, and links matched bank lines to existing posted Bank GL voucher lines. Finance imports and matches; independent Admin finalizes. It does not originate or authenticate bank files, verify funds, transfer funds, read actual bank accounts, reconcile bank fees automatically or certify opening balances. Statements must be contiguous and stable, with a current 100-movement import limit. Production go-live remains **NO-GO** without independently authenticated bank feeds or signed settlement evidence.

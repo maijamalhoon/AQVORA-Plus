@@ -127,6 +127,21 @@ Phase 5 setup: After migration, ensure control accounts 2010201001 (Sales Tax Co
 
 **Release gate:** Run npm run release:check for the development readiness report. This prototype does not declare production readiness. See docs/RELEASE_READINESS.md.
 
+## Phase 11: Bank Reconciliation (BRS) — Maker/Checker (Draft PR)
+
+AQVORA Plus now has an independent bank statement reconciliation workflow. **Finance** imports a small, synthetic bank-statement CSV, matches signed bank movements to posted Bank GL voucher lines and checks deposits in transit, outstanding payments and book/bank variance. A separate **Admin** must sign off an exact reconciliation.
+
+- Statement import requires unique bank transaction IDs and confirms opening + signed movements = closing. Statements must be chronological, contiguous and previously finalized.
+- Posted ledger bank debits are inflows, ledger bank credits are outflows. Each statement line can match one **same-amount, same-direction, same-account** posted voucher line, once across all statements.
+- Reconciliation does **not** create, change, delete or silently auto-balance any voucher. Unmatched statement activity remains visible for investigation.
+- BRS calculates: adjusted bank = statement closing + uncleared deposits − outstanding payments; variance = posted book balance − adjusted bank.
+- Finance can unmatch before approval; every unmatch is audited. Finalization requires zero difference, all statement lines matched and a separate Admin user.
+- Finalized BRS documents are immutable. The posting engine blocks backdated bank vouchers inside finalized statement periods and generic reversals of matched vouchers.
+
+This is an **internal accounting-control prototype**, not an actual bank feed or independently bank-verified BRS. Real settlement evidence, statement provenance, opening balance cutover, permissions and external assurance require independent review.
+
+See [Phase 11 BRS workflow and limitations](docs/PHASE11_BANK_RECONCILIATION.md). Keep the Draft PR unmerged until CI, finance/security review and operational verification.
+
 ### Phase 10 — Staff onboarding and first-login credentials
 
 Admin → Staff & Permissions can create new non-Admin staff accounts in the selected company. A user cannot access accounting or operations using a temporary password: they must rotate it at first sign-in, after which all previous sessions are revoked. Duplicate emails and cross-company silent memberships are rejected. This is a development workflow, **not** enterprise SSO, MFA or a vetted invitation system.
