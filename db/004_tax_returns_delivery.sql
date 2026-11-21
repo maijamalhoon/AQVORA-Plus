@@ -33,7 +33,20 @@ ALTER TABLE vehicle_sales_invoices ADD COLUMN credited_tax_paisa bigint NOT NULL
  CHECK(credited_tax_paisa>=0);
 ALTER TABLE vehicle_sales_invoices ADD COLUMN gross_amount_paisa bigint GENERATED ALWAYS AS
  (sales_amount_paisa + sales_tax_paisa) STORED;
-ALTER TABLE vehicle_sales_invoices DROP CONSTRAINT vehicle_sales_invoices_paid_paisa_check;
+DO $
+DECLARE existing_check text;
+BEGIN
+ SELECT c.conname INTO existing_check FROM pg_constraint c
+ JOIN pg_class t ON t.oid=c.conrelid
+ WHERE t.relname='vehicle_sales_invoices' AND c.contype='c'
+   AND pg_get_constraintdef(c.oid) LIKE '%paid_paisa%'
+   AND pg_get_constraintdef(c.oid) LIKE '%sales_amount_paisa%'
+ ORDER BY c.oid LIMIT 1;
+ IF existing_check IS NULL THEN
+   RAISE EXCEPTION 'Original vehicle sales paid amount constraint not found';
+ END IF;
+ EXECUTE format('ALTER TABLE vehicle_sales_invoices DROP CONSTRAINT %I',existing_check);
+END $;
 ALTER TABLE vehicle_sales_invoices ADD CONSTRAINT vehicle_sale_net_tax_credits
  CHECK(credited_net_paisa<=sales_amount_paisa
    AND credited_tax_paisa<=sales_tax_paisa
@@ -51,7 +64,20 @@ CREATE UNIQUE INDEX vehicle_sales_tax_voucher_unique ON vehicle_sales_invoices(c
 
 ALTER TABLE purchase_bills ADD COLUMN returned_qty integer NOT NULL DEFAULT 0 CHECK(returned_qty>=0);
 ALTER TABLE purchase_bills ADD COLUMN credited_paisa bigint NOT NULL DEFAULT 0 CHECK(credited_paisa>=0);
-ALTER TABLE purchase_bills DROP CONSTRAINT purchase_bills_paid_paisa_check;
+DO $
+DECLARE existing_check text;
+BEGIN
+ SELECT c.conname INTO existing_check FROM pg_constraint c
+ JOIN pg_class t ON t.oid=c.conrelid
+ WHERE t.relname='purchase_bills' AND c.contype='c'
+   AND pg_get_constraintdef(c.oid) LIKE '%paid_paisa%'
+   AND pg_get_constraintdef(c.oid) LIKE '%amount_paisa%'
+ ORDER BY c.oid LIMIT 1;
+ IF existing_check IS NULL THEN
+   RAISE EXCEPTION 'Original supplier bill paid amount constraint not found';
+ END IF;
+ EXECUTE format('ALTER TABLE purchase_bills DROP CONSTRAINT %I',existing_check);
+END $;
 ALTER TABLE purchase_bills ADD CONSTRAINT purchase_credit_limits
  CHECK(credited_paisa<=amount_paisa AND paid_paisa>=0
  AND paid_paisa+credited_paisa<=amount_paisa
@@ -59,7 +85,20 @@ ALTER TABLE purchase_bills ADD CONSTRAINT purchase_credit_limits
 
 ALTER TABLE stock_movements DROP CONSTRAINT stock_movements_direction_check;
 ALTER TABLE stock_movements ADD CONSTRAINT stock_movements_direction_check CHECK(direction IN ('RECEIPT','ISSUE','RETURN'));
-ALTER TABLE stock_movements DROP CONSTRAINT stock_movements_check;
+DO $
+DECLARE existing_check text;
+BEGIN
+ SELECT c.conname INTO existing_check FROM pg_constraint c
+ JOIN pg_class t ON t.oid=c.conrelid
+ WHERE t.relname='stock_movements' AND c.contype='c'
+   AND pg_get_constraintdef(c.oid) LIKE '%direction%'
+   AND pg_get_constraintdef(c.oid) LIKE '%job_id%'
+ ORDER BY c.oid LIMIT 1;
+ IF existing_check IS NULL THEN
+   RAISE EXCEPTION 'Original stock movement/job linkage constraint not found';
+ END IF;
+ EXECUTE format('ALTER TABLE stock_movements DROP CONSTRAINT %I',existing_check);
+END $;
 ALTER TABLE stock_movements ADD CONSTRAINT stock_movements_check
  CHECK((direction='ISSUE' AND job_id IS NOT NULL)
  OR (direction IN ('RECEIPT','RETURN') AND job_id IS NULL));
