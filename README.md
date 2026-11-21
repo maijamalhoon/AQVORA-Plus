@@ -2,6 +2,21 @@
 
 **Independent dealership management system** built separately from the AQVORA Enterprise ERP. The product target is equivalent, observed Dealer Pro business workflows, implemented from scratch with distinct branding. Not affiliated with CIBS or Dealer Pro.
 
+## Phase 6: Dual-control vehicle price refunds and source audit (Draft PR #6)
+
+This original implementation supports a **narrow, traceable customer refund** when a vehicle sale invoice was already paid and the dealership later agrees to a partial price reduction.
+
+1. A **FINANCE** user requests a documented net price credit on an existing paid vehicle invoice.
+2. A **different ADMIN** reviews and explicitly **APPROVES** or **REJECTS** the pending request. The requester can never approve their own adjustment.
+3. A **FINANCE** user executes an approved request. In one database transaction the app posts Bank Credit / Customer AR Debit for cash refunded, issues the linked vehicle price-adjustment credit note (Revenue Debit and applicable Tax Control Debit / AR Credit), updates net collected amounts, and writes an immutable refund audit trail.
+4. The Refund Audit screen detects unposted refund vouchers and missing request → disbursement → credit note links.
+
+**Important:** The single bootstrap ADMIN account cannot execute this workflow alone. You need at least two independent, correctly provisioned people (Finance requester/executor and Admin approver). This is intentionally a **four-eyes control**.
+
+**Scope exclusions:** This does NOT implement full vehicle return, legal title reversal, after-sale cancellations, physical stock return, customer bank-account validation, actual bank disbursement integration or supplier refunds. A posted refund is a book entry indicating disbursement; transfer confirmation and bank statement reconciliation remain external responsibilities. Do NOT use with real money or real customer data until independent security/accounting/operations review.
+
+[Phase 6 refund controls and limitations](docs/PHASE6_REFUND_APPROVALS.md). This PR stacks on PR #5; merge all earlier reviewed PRs first.
+
 ## Phase 5: Tax snapshots, returns, credit notes, vehicle delivery and reporting (Draft PR #5)
 
 **Original company-scoped workflows, not vendor source replication:**

@@ -57,7 +57,11 @@ function navigation(){
     {id:'phase5:tax-report',text:'Tax Summary',group:'Financial Reports',roles:['ADMIN','FINANCE']},
     {id:'phase5:margin',text:'Sales Margin',group:'Financial Reports',roles:['ADMIN','FINANCE','SALES']}
   ];
-  modules.concat(controls,phase5).filter(x=>x.roles.includes(state.selected.role)).forEach(x=>items.push(x));
+  const phase6=[
+    {id:'phase6:queue',text:'Refund Approvals',group:'Financials / Accounts',roles:['ADMIN','FINANCE']},
+    {id:'phase6:audit',text:'Refund Audit',group:'Financial Reports',roles:['ADMIN','FINANCE']}
+  ];
+  modules.concat(controls,phase5,phase6).filter(x=>x.roles.includes(state.selected.role)).forEach(x=>items.push(x));
   Object.entries(operations).forEach(([dep,labels])=>{
     if(state.selected.role==='ADMIN'||state.selected.role===dep)
       labels.forEach(text=>items.push({id:'planned:'+dep+':'+text,text,group:dep+' Operations',planned:true}));
@@ -211,7 +215,7 @@ function render(){
   $('breadcrumb-section').textContent=found.group.toUpperCase();
   $('page-subtitle').textContent=p.startsWith('new:')?'Create a voucher with balanced debit and credit lines':'Dealership management workspace';
   renderNav();
-  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):p.startsWith('fin4:')?window.AQVORA_FIN4.render(p,state.selected.role):p.startsWith('phase5:')?window.AQVORA_PHASE5.render(p,state.selected.role):
+  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):p.startsWith('fin4:')?window.AQVORA_FIN4.render(p,state.selected.role):p.startsWith('phase5:')?window.AQVORA_PHASE5.render(p,state.selected.role):p.startsWith('phase6:')?window.AQVORA_PHASE6.render(p,state.selected.role):
     '<div class="banner"><strong>Planned feature — '+esc(found.text)+'</strong>This function is part of the Dealer Pro parity roadmap, but is not implemented in this development release.</div>';
   if(p.startsWith('new:'))updateTotals();
 }
@@ -228,6 +232,7 @@ async function open(page){
     if(page.startsWith('auto:'))await window.AQVORA_AUTO.load(page,api);
     if(page.startsWith('fin4:'))await window.AQVORA_FIN4.load(page,api);
     if(page.startsWith('phase5:'))await window.AQVORA_PHASE5.load(page,api);
+    if(page.startsWith('phase6:'))await window.AQVORA_PHASE6.load(page,api);
   }catch(e){notify(e.message,true);}
   render();
 }
@@ -312,6 +317,7 @@ $('view').addEventListener('submit',event=>{
   if(event.target.id==='auto-form')window.AQVORA_AUTO.submit(event,{post,open,notify});
   if(event.target.id==='fin4-form')window.AQVORA_FIN4.submit(event,{post,open,notify});
   if(event.target.id==='phase5-form')window.AQVORA_PHASE5.submit(event,{post,open,notify});
+  if(event.target.id==='phase6-form')window.AQVORA_PHASE6.submit(event,{post,open,notify});
 });
 $('view').addEventListener('input',event=>{if(event.target.closest('#entry-lines'))updateTotals();});
 $('view').addEventListener('click',async event=>{
@@ -320,6 +326,7 @@ $('view').addEventListener('click',async event=>{
   const act=b.dataset.action;
   if(act.startsWith('auto:')){await window.AQVORA_AUTO.act(act.slice(5),b.dataset.id,{post,open,notify});return;}
   if(act.startsWith('fin4:')){await window.AQVORA_FIN4.act(act.slice(5),b.dataset.id,{post,open,notify});return;}
+  if(act.startsWith('phase6:')){await window.AQVORA_PHASE6.act(act.slice(7),b.dataset.id,{post,open,notify});return;}
   if(['view','post','reverse'].includes(act)){await voucherAction(act,b.dataset.id);return;}
   if(act==='new-jv'){await open('new:JV');return;}
   if(act==='go-vouchers'){await open('vouchers');return;}
