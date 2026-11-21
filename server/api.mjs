@@ -10,6 +10,7 @@ import {handlePhase4Api} from './finance-operations.mjs';
 import {handlePhase5Api} from './phase5.mjs';
 import {handlePhase6Api} from './phase6.mjs';
 import {handlePhase7Api} from './phase7.mjs';
+import {handleBankReconciliationApi} from './bank-reconciliation.mjs';
 import {SYSTEM_POSTED_CONTROL_CODES,blockedControlCodes} from './ledger-controls.mjs';
 
 const {Pool}=pg, publicDir=fileURLToPath(new URL('../public/',import.meta.url));
@@ -103,7 +104,7 @@ async function route(req,res,pool,production){
   const uri=new URL(req.url||'/','http://localhost'),path=uri.pathname;
   if(path==='/api/health'&&req.method==='GET')return send(res,200,{ok:true,app:'AQVORA Plus'});
   if(!path.startsWith('/api/')){
-    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js','/phase7-ui.js':'phase7-ui.js','/admin-users-ui.js':'admin-users-ui.js'};
+    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js','/phase7-ui.js':'phase7-ui.js','/admin-users-ui.js':'admin-users-ui.js','/brs-ui.js':'brs-ui.js'};
     if(!allowed[path]||req.method!=='GET')return send(res,404,{error:'Not found'});
     const filename=allowed[path],content=await readFile(join(publicDir,filename));
     res.writeHead(200,{'content-type':filename.endsWith('.css')?'text/css; charset=utf-8':filename.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});
@@ -186,6 +187,7 @@ async function route(req,res,pool,production){
     });
     return send(res,201,result);
   }
+  if(await handleBankReconciliationApi({req,res,pool,ctx,path,send,fail,readJson,tx}))return;
   if(await handlePhase7Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase6Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase5Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;

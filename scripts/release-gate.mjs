@@ -3,11 +3,12 @@ const requiredFiles=[
  'db/001_initial.sql','db/002_automotive.sql','db/003_accounted_finance.sql',
  'db/004_tax_returns_delivery.sql','db/005_refund_approvals.sql',
  'db/006_supplier_refunds.sql','db/007_audit_immutability.sql','db/008_staff_first_login.sql',
+ 'db/009_bank_reconciliation.sql',
  'server/api.mjs','server/ledger-controls.mjs','server/automotive.mjs',
  'server/finance-operations.mjs','server/phase5.mjs','server/phase6.mjs',
- 'server/phase7.mjs','scripts/bootstrap.mjs','scripts/migrate.mjs',
+ 'server/phase7.mjs','server/bank-reconciliation.mjs','scripts/bootstrap.mjs','scripts/migrate.mjs',
  'docs/RELEASE_READINESS.md','test/bootstrap-security.integration.test.mjs',
- 'test/ledger-controls.integration.test.mjs','test/staff-onboarding.integration.test.mjs'
+ 'test/ledger-controls.integration.test.mjs','test/staff-onboarding.integration.test.mjs','test/bank-reconciliation.integration.test.mjs'
 ];
 const checks=[];
 for(const file of requiredFiles){
@@ -15,7 +16,7 @@ for(const file of requiredFiles){
  catch{checks.push({check:'file:'+file,pass:false});}
 }
 const migrate=await readFile(new URL('./migrate.mjs',import.meta.url),'utf8');
-for(let version=1;version<=8;version++){
+for(let version=1;version<=9;version++){
  const expected=String(version).padStart(3,'0')+'_';
  checks.push({check:'migration:'+expected,pass:migrate.includes(expected)});
 }
