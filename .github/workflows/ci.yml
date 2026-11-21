@@ -29,5 +29,6 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: npm run check
+      - run: npm run release:check
       - run: npm run db:migrate
       - run: npm test

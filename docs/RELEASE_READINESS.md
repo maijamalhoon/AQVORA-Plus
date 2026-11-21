@@ -42,3 +42,7 @@
 - Admin can create **new** FINANCE/SALES/SERVICE/PARTS/VIEWER users for their own company. Duplicate emails and assigning existing identities to other companies are intentionally blocked. ADMIN role cannot be created through this basic endpoint.
 - Staff receive an out-of-band temporary 14+ character password supplied by the admin. They **must** change it using their own selected password on first login. Every financial/business API remains blocked until the change, and all old sessions are invalidated when it succeeds.
 - This is **not a secure emailed invitation system**, nor independent proof the beneficiary is the rightful user. No MFA, mandatory password expiry, recovery/invite tokens, self-service deactivate and access-review approval exist. Administrative staff provisioning remains an operational process requiring independent organizational controls.
+
+## Consolidated review candidate
+
+The repository can aggregate the stacked development stages into one Draft PR targeting the main branch. Treat that PR as a **readable complete prototype snapshot**, not approval for production: the release gate in CI verifies required source files and explicitly keeps production_ready=false. Independent review must verify security and accounting assumptions before promotion.

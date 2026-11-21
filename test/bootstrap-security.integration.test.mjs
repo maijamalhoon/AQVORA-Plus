@@ -54,6 +54,11 @@ test('Bootstrap is create-only, cannot reset admin credentials or elevate existi
   assert.notEqual(reuse.status,0);
   const forbidden=await db.query('SELECT id FROM companies WHERE code=$1',['N'+tag]);
   assert.equal(forbidden.rowCount,0,'Duplicate-email bootstrap transaction must rollback');
+  const gate=spawnSync(process.execPath,[fileURLToPath(new URL('../scripts/release-gate.mjs',import.meta.url))],{
+    encoding:'utf8',env:{...process.env,AQVORA_RELEASE_MODE:'production'},timeout:30000
+  });
+  assert.notEqual(gate.status,0,'Development code must fail an attempted production release');
+  assert.match(gate.stdout,/"production_ready": false/);
   const noCode=run({BOOTSTRAP_COMPANY_CODE:''});
   assert.notEqual(noCode.status,0);
   // Append-only event provenance: SQL edits and deletions must both be blocked.
