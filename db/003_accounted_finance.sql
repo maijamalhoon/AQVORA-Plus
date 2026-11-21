@@ -188,4 +188,18 @@ BEGIN
 END $$;
 CREATE TRIGGER sold_booking_guard BEFORE UPDATE ON sales_bookings
  FOR EACH ROW EXECUTE FUNCTION guard_sold_booking();
+-- Defence in depth: financially valued inventory cannot receive unposted movements.
+CREATE FUNCTION guard_accounted_stock_movement() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE current_mode text;
+BEGIN
+  SELECT valuation_mode INTO current_mode FROM parts WHERE company_id=NEW.company_id AND id=NEW.part_id;
+  IF current_mode='POSTED' AND NEW.accounting_voucher_id IS NULL THEN
+    RAISE EXCEPTION 'Accounted stock requires an associated financial journal';
+  END IF;
+  RETURN NEW;
+END $$;
+CREATE TRIGGER accounted_stock_movement_guard BEFORE INSERT ON stock_movements
+ FOR EACH ROW EXECUTE FUNCTION guard_accounted_stock_movement();
+
+
 COMMIT;

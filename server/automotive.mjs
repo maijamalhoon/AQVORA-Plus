@@ -205,9 +205,10 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
         unitCost:direction==='RECEIPT'?paisaField(x.unitCost,'Unit purchase cost'):null};
     });
     const result=await tx(pool,async db=>{
-      const part=await db.query('SELECT id,sku,stock_qty,unit_cost_paisa::text FROM parts WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,input.partId]);
+      const part=await db.query('SELECT id,sku,stock_qty,unit_cost_paisa::text,valuation_mode FROM parts WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,input.partId]);
       if(!part.rowCount)fail(404,'Part not found');
       const current=part.rows[0];
+      if(current.valuation_mode==='POSTED')fail(409,'Accounted inventory must use financially posted Finance procurement/issue routes');
       if(input.direction==='ISSUE'){
         if(current.stock_qty<input.quantity)fail(409,'Insufficient available stock');
         const job=await db.query('SELECT status FROM service_jobs WHERE company_id=$1 AND id=$2',[company,input.jobId]);
