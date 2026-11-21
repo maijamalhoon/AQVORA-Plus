@@ -11,7 +11,7 @@ test('Phase 11: two-stage posted-bank-ledger reconciliation preserves outstandin
  const tag=randomBytes(5).toString('hex');
  const company=(await pool.query('INSERT INTO companies(code,name) VALUES($1,$2) RETURNING id',['R'+tag,'BRS QA Dealer'])).rows[0].id;
  const other=(await pool.query('INSERT INTO companies(code,name) VALUES($1,$2) RETURNING id',['S'+tag,'Other Dealer'])).rows[0].id;
- await pool.query('INSERT INTO departments(company_id,code,name) VALUES($1,$2)',[company,'FINANCE','Finance']);
+ await pool.query('INSERT INTO departments(company_id,code,name) VALUES($1,$2,$3)',[company,'FINANCE','Finance']);
  await pool.query('INSERT INTO fiscal_periods(company_id,period) VALUES($1,$2)',[company,'2026-11']);
  for(const [code,name,kind] of [
   ['1020402001','Bank','ASSET'],
