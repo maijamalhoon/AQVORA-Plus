@@ -8,6 +8,7 @@ import {permitted,validateDraft,periodOf,voucherNumber,validDate} from './logic.
 import {handleAutomotiveApi} from './automotive.mjs';
 import {handlePhase4Api} from './finance-operations.mjs';
 import {handlePhase5Api} from './phase5.mjs';
+import {handlePhase6Api} from './phase6.mjs';
 
 const {Pool}=pg, publicDir=fileURLToPath(new URL('../public/',import.meta.url));
 const uuid=/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i;
@@ -100,7 +101,7 @@ async function route(req,res,pool,production){
   const uri=new URL(req.url||'/','http://localhost'),path=uri.pathname;
   if(path==='/api/health'&&req.method==='GET')return send(res,200,{ok:true,app:'AQVORA Plus'});
   if(!path.startsWith('/api/')){
-    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js'};
+    const allowed={'/':'index.html','/index.html':'index.html','/styles.css':'styles.css','/app.js':'app.js','/automotive-ui.js':'automotive-ui.js','/finance-ui.js':'finance-ui.js','/phase5-ui.js':'phase5-ui.js','/phase6-ui.js':'phase6-ui.js'};
     if(!allowed[path]||req.method!=='GET')return send(res,404,{error:'Not found'});
     const filename=allowed[path],content=await readFile(join(publicDir,filename));
     res.writeHead(200,{'content-type':filename.endsWith('.css')?'text/css; charset=utf-8':filename.endsWith('.js')?'text/javascript; charset=utf-8':'text/html; charset=utf-8','cache-control':'no-store'});
@@ -129,6 +130,7 @@ async function route(req,res,pool,production){
     sessionCookie(res,'',production,0);return send(res,200,{ok:true});
   }
   const ctx=await identity(pool,req),company=ctx.selected.company_id;
+  if(await handlePhase6Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase5Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
   if(await handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}))return;
@@ -193,6 +195,7 @@ async function route(req,res,pool,production){
         " OR EXISTS(SELECT 1 FROM supplier_payments WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM vehicle_sales_invoices WHERE company_id=$1 AND (revenue_voucher_id=$2 OR cogs_voucher_id=$2 OR tax_voucher_id=$2))"+
         " OR EXISTS(SELECT 1 FROM vehicle_credit_notes WHERE company_id=$1 AND (revenue_voucher_id=$2 OR tax_voucher_id=$2))"+
+        " OR EXISTS(SELECT 1 FROM vehicle_refund_disbursements WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM purchase_returns WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM vehicle_sales_payments WHERE company_id=$1 AND voucher_id=$2)"+
         " OR EXISTS(SELECT 1 FROM stock_movements WHERE company_id=$1 AND accounting_voucher_id=$2)) AS linked",
