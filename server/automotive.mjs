@@ -173,7 +173,7 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
   // Parts stock ledger. Stock movements are immutable, no negative stock allowed.
   if(path==='/api/auto/parts'&&isGet){
     permitted('parts_read');
-    const r=await pool.query('SELECT id,sku,name,unit_cost_paisa::text,stock_qty FROM parts WHERE company_id=$1 ORDER BY sku LIMIT 300',[company]);
+    const r=await pool.query('SELECT id,sku,name,unit_cost_paisa::text,stock_qty,inventory_value_paisa::text,valuation_mode FROM parts WHERE company_id=$1 ORDER BY sku LIMIT 300',[company]);
     send(res,200,{parts:r.rows});return true;
   }
   if(path==='/api/auto/parts'&&isPost){
@@ -284,7 +284,15 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
   if(path==='/api/reports/ar-aging'&&isGet){
     permitted('ar_read');
     const r=await pool.query(
-      'SELECT i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,i.labor_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.labor_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue FROM service_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id WHERE i.company_id=$1 AND i.paid_paisa<i.labor_amount_paisa ORDER BY i.due_date,i.reference LIMIT 300',
+      "SELECT 'SERVICE' AS invoice_type,i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,"+
+      "i.labor_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.labor_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue "+
+      "FROM service_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id "+
+      "WHERE i.company_id=$1 AND i.paid_paisa<i.labor_amount_paisa "+
+      "UNION ALL "+
+      "SELECT 'VEHICLE' AS invoice_type,i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,"+
+      "i.sales_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.sales_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue "+
+      "FROM vehicle_sales_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id "+
+      "WHERE i.company_id=$1 AND i.paid_paisa<i.sales_amount_paisa ORDER BY due_date,reference LIMIT 300",
       [company]);
     send(res,200,{rows:r.rows,scope:'CURRENT_OUTSTANDING_ONLY',as_of:todayUTC()});return true;
   }

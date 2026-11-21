@@ -6,7 +6,7 @@ const pool=poolFromEnv(),client=await pool.connect();
 try {
   // A single advisory transaction lock prevents concurrent migration runners.
   await client.query('CREATE TABLE IF NOT EXISTS schema_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())');
-  for(const file of ['001_initial.sql','002_automotive.sql']){
+  for(const file of ['001_initial.sql','002_automotive.sql','003_accounted_finance.sql']){
     await client.query('BEGIN');
     try {
       await client.query('SELECT pg_advisory_xact_lock(710341,2026)');
