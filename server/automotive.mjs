@@ -293,9 +293,9 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
       "WHERE i.company_id=$1 AND i.paid_paisa<i.labor_amount_paisa "+
       "UNION ALL "+
       "SELECT 'VEHICLE' AS invoice_type,i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,"+
-      "i.sales_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.sales_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue "+
+      "i.gross_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.gross_amount_paisa-i.credited_net_paisa-i.credited_tax_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue "+
       "FROM vehicle_sales_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id "+
-      "WHERE i.company_id=$1 AND i.paid_paisa<i.sales_amount_paisa ORDER BY due_date,reference LIMIT 300",
+      "WHERE i.company_id=$1 AND i.paid_paisa+i.credited_net_paisa+i.credited_tax_paisa<i.gross_amount_paisa ORDER BY due_date,reference LIMIT 300",
       [company]);
     send(res,200,{rows:r.rows,scope:'CURRENT_OUTSTANDING_ONLY',as_of:todayUTC()});return true;
   }

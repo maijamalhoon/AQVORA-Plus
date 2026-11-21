@@ -19,7 +19,7 @@ async function load(page,api){
  const pages={
   'fin4:suppliers':['/api/finance4/suppliers'],
   'fin4:purchases':['/api/finance4/suppliers','/api/finance4/purchases','/api/auto/parts'],
-  'fin4:sales':['/api/auto/sales/bookings','/api/finance4/sales-invoices'],
+  'fin4:sales':['/api/auto/sales/bookings','/api/finance4/sales-invoices','/api/phase5/tax-codes'],
   'fin4:parts':['/api/auto/parts','/api/auto/service/jobs','/api/auto/stock-movements'],
   'fin4:reconciliation':['/api/reports/reconciliation']
  };
@@ -61,16 +61,18 @@ function purchases(role){
 function sales(role){
  const bookings=data['/api/auto/sales/bookings']?.bookings||[];
  const invoices=data['/api/finance4/sales-invoices']?.invoices||[];
+ const codes=data['/api/phase5/tax-codes']?.codes||[];
  const issued=new Set(invoices.map(x=>x.booking_reference));
  const available=bookings.filter(x=>x.status==='BOOKED'&&!issued.has(x.reference));
  const create=write(role)?form('vehicle-sale','Post Booked Vehicle Sales Invoice',[
    select('Booked vehicle','bookingId',available,'id',x=>x.reference+' / '+x.customer_name+' / '+x.chassis,'Select booked vehicle'),
    field('Invoice Date','date','','date',true,date()),
-   field('Due Date','dueDate','','date',true,date())
+   field('Due Date','dueDate','','date',true,date()),
+   select('Sales tax code','taxCode',codes,'code',x=>x.code+' / '+(x.rate_bps/100).toFixed(2)+'%','No configured tax code',false)
  ]):'';
  return '<div class="banner"><strong>Financially posted vehicle sale</strong> Invoice recognizes A/R and sales revenue, and separately posts vehicle COGS / inventory reduction. Only vehicles acquired through an accounted procurement can be sold. This does not yet complete registration or legal delivery documentation.</div>'+
-   create+card('Vehicle Sales Invoices',rows(['Invoice','Booking','Customer','Chassis','Revenue (PKR)','Cost (PKR)','Outstanding','Action'],
-   invoices.map(x=>'<tr>'+td(x.reference)+td(x.booking_reference)+td(x.customer_name)+td(x.chassis)+amt(x.sales_amount_paisa)+amt(x.cogs_paisa)+amt(x.outstanding_paisa)+'<td>'+
+   create+card('Vehicle Sales Invoices',rows(['Invoice','Booking','Customer','Chassis','Revenue (PKR)','Sales Tax','Cost (PKR)','Outstanding','Action'],
+   invoices.map(x=>'<tr>'+td(x.reference)+td(x.booking_reference)+td(x.customer_name)+td(x.chassis)+amt(x.sales_amount_paisa)+amt(x.sales_tax_paisa)+amt(x.cogs_paisa)+amt(x.outstanding_paisa)+'<td>'+
      (write(role)&&BigInt(x.outstanding_paisa)>0n?action('Collect','sale-collection',x.id):'—')+'</td></tr>')));
 }
 function parts(role){
