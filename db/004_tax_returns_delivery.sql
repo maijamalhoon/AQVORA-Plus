@@ -206,12 +206,14 @@ BEGIN
    END IF;
  END IF;
  IF NEW.paid_paisa<OLD.paid_paisa THEN RAISE EXCEPTION 'Paid amount cannot decrease'; END IF;
- IF TG_TABLE_NAME='purchase_bills' AND
-   (NEW.credited_paisa<OLD.credited_paisa OR NEW.returned_qty<OLD.returned_qty) THEN
-   RAISE EXCEPTION 'Supplier credit amount cannot decrease';
- ELSIF TG_TABLE_NAME='vehicle_sales_invoices' AND
-   (NEW.credited_net_paisa<OLD.credited_net_paisa OR NEW.credited_tax_paisa<OLD.credited_tax_paisa) THEN
-   RAISE EXCEPTION 'Customer credit amount cannot decrease';
+ IF TG_TABLE_NAME='purchase_bills' THEN
+   IF NEW.credited_paisa<OLD.credited_paisa OR NEW.returned_qty<OLD.returned_qty THEN
+     RAISE EXCEPTION 'Supplier credit amount cannot decrease';
+   END IF;
+ ELSE
+   IF NEW.credited_net_paisa<OLD.credited_net_paisa OR NEW.credited_tax_paisa<OLD.credited_tax_paisa THEN
+     RAISE EXCEPTION 'Customer credit amount cannot decrease';
+   END IF;
  END IF;
  RETURN NEW;
 END $$;
