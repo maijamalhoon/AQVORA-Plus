@@ -42,8 +42,8 @@ function navigation(){
     {id:'auto:ar-aging',text:'AR Aging',group:'Financial Reports',roles:['ADMIN','FINANCE']}
   ];
   const controls=[
-    {id:'fin4:suppliers',text:'Suppliers',group:'Master Data / Finance',roles:['ADMIN','FINANCE','SALES','PARTS']},
-    {id:'fin4:purchases',text:'Purchase Bills / Payables',group:'Financials / Procurement',roles:['ADMIN','FINANCE','SALES','PARTS']},
+    {id:'fin4:suppliers',text:'Suppliers',group:'Master Data / Finance',roles:['ADMIN','FINANCE']},
+    {id:'fin4:purchases',text:'Purchase Bills / Payables',group:'Financials / Procurement',roles:['ADMIN','FINANCE']},
     {id:'fin4:sales',text:'Vehicle Sales Invoices',group:'Sales Operations',roles:['ADMIN','FINANCE','SALES']},
     {id:'fin4:parts',text:'Parts Valuation & COGS',group:'Parts Operations',roles:['ADMIN','FINANCE','PARTS']},
     {id:'fin4:reconciliation',text:'Control Reconciliation',group:'Financial Reports',roles:['ADMIN','FINANCE']}

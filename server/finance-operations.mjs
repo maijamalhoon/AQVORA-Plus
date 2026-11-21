@@ -7,9 +7,9 @@ const moneySafe=(value,fail)=>{if(!Number.isSafeInteger(value)||value<1)fail(400
 export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJson,tx,postExisting,openPeriod}){
   if(!path.startsWith('/api/finance4/')&&path!=='/api/reports/reconciliation')return false;
   const company=ctx.selected.company_id, actor=ctx.user.id, role=ctx.selected.role;
-  const readAllowed=['ADMIN','FINANCE','SALES','PARTS'].includes(role);
   const financeAllowed=['ADMIN','FINANCE'].includes(role);
-  const mustRead=()=>{if(!readAllowed)fail(403,'Your role cannot view these financial operations');};
+  const mustRead=()=>{if(!financeAllowed)fail(403,'Only Finance or Admin can view supplier financial records');};
+  const mustSalesRead=()=>{if(!['ADMIN','FINANCE','SALES'].includes(role))fail(403,'Not authorized for vehicle sales invoices');};
   const mustFinance=()=>{if(!financeAllowed)fail(403,'Only Finance or Admin can post financial operations');};
   const read=fn=>parseInput(()=>readJson(req),fail,fn);
   const audit=async(db,action,entity,meta={})=>{
@@ -191,7 +191,7 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
   }
 
   if(path==='/api/finance4/sales-invoices'&&get){
-    mustRead();
+    mustSalesRead();
     const r=await pool.query(
       "SELECT i.id,i.reference,i.invoice_date::text,i.due_date::text,i.sales_amount_paisa::text,i.cogs_paisa::text,i.paid_paisa::text,(i.sales_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,c.name AS customer_name,v.chassis,v.variant,b.reference AS booking_reference FROM vehicle_sales_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id JOIN vehicle_stock v ON v.company_id=i.company_id AND v.id=i.vehicle_id JOIN sales_bookings b ON b.company_id=i.company_id AND b.id=i.booking_id WHERE i.company_id=$1 ORDER BY i.created_at DESC LIMIT 200",[company]);
     send(res,200,{invoices:r.rows});return true;

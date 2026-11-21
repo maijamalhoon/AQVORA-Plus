@@ -127,6 +127,8 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
       const r=await db.query('SELECT id,vehicle_id,status,reference FROM sales_bookings WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,cancel[1]]);
       if(!r.rowCount)fail(404,'Booking not found');
       if(r.rows[0].status!=='BOOKED')fail(409,'Booking has already been cancelled');
+      const sold=await db.query('SELECT id FROM vehicle_sales_invoices WHERE company_id=$1 AND booking_id=$2',[company,cancel[1]]);
+      if(sold.rowCount)fail(409,'Cannot cancel an invoiced vehicle booking');
       await db.query("UPDATE sales_bookings SET status='CANCELLED',cancelled_at=now() WHERE company_id=$1 AND id=$2",[company,cancel[1]]);
       await db.query("UPDATE vehicle_stock SET status='IN_STOCK' WHERE company_id=$1 AND id=$2",[company,r.rows[0].vehicle_id]);
       await audit(db,'VEHICLE_BOOKING_CANCELLED',cancel[1],{reference:r.rows[0].reference});
