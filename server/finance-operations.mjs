@@ -63,7 +63,7 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
   }
   if(path==='/api/finance4/purchases'&&get){
     mustRead();
-    const r=await pool.query("SELECT b.id,b.reference,b.supplier_invoice_no,b.bill_type,b.invoice_date::text,b.due_date::text,b.amount_paisa::text,b.paid_paisa::text,(b.amount_paisa-b.paid_paisa)::text AS outstanding_paisa,s.name AS supplier_name,b.quantity FROM purchase_bills b JOIN suppliers s ON s.company_id=b.company_id AND s.id=b.supplier_id WHERE b.company_id=$1 ORDER BY b.created_at DESC LIMIT 200",[company]);
+    const r=await pool.query("SELECT b.id,b.reference,b.supplier_invoice_no,b.bill_type,b.invoice_date::text,b.due_date::text,b.amount_paisa::text,b.paid_paisa::text,(b.amount_paisa-b.credited_paisa-b.paid_paisa)::text AS outstanding_paisa,b.credited_paisa::text,b.returned_qty,s.name AS supplier_name,b.quantity FROM purchase_bills b JOIN suppliers s ON s.company_id=b.company_id AND s.id=b.supplier_id WHERE b.company_id=$1 ORDER BY b.created_at DESC LIMIT 200",[company]);
     send(res,200,{purchases:r.rows});return true;
   }
   const vehiclePurchase=path==='/api/finance4/purchases/vehicle'&&post;
@@ -193,13 +193,13 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
   if(path==='/api/finance4/sales-invoices'&&get){
     mustSalesRead();
     const r=await pool.query(
-      "SELECT i.id,i.reference,i.invoice_date::text,i.due_date::text,i.sales_amount_paisa::text,i.cogs_paisa::text,i.paid_paisa::text,(i.sales_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,c.name AS customer_name,v.chassis,v.variant,b.reference AS booking_reference FROM vehicle_sales_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id JOIN vehicle_stock v ON v.company_id=i.company_id AND v.id=i.vehicle_id JOIN sales_bookings b ON b.company_id=i.company_id AND b.id=i.booking_id WHERE i.company_id=$1 ORDER BY i.created_at DESC LIMIT 200",[company]);
+      "SELECT i.id,i.reference,i.invoice_date::text,i.due_date::text,i.sales_amount_paisa::text,i.sales_tax_paisa::text,i.gross_amount_paisa::text,i.tax_rate_bps,i.credited_net_paisa::text,i.credited_tax_paisa::text,i.cogs_paisa::text,i.paid_paisa::text,(i.gross_amount_paisa-i.credited_net_paisa-i.credited_tax_paisa-i.paid_paisa)::text AS outstanding_paisa,c.name AS customer_name,v.chassis,v.variant,b.reference AS booking_reference FROM vehicle_sales_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id JOIN vehicle_stock v ON v.company_id=i.company_id AND v.id=i.vehicle_id JOIN sales_bookings b ON b.company_id=i.company_id AND b.id=i.booking_id WHERE i.company_id=$1 ORDER BY i.created_at DESC LIMIT 200",[company]);
     send(res,200,{invoices:r.rows});return true;
   }
   if(path==='/api/finance4/sales-invoices'&&post){
     mustFinance();
     const input=await read(x=>({bookingId:checkUuid(x.bookingId,fail,'Booking'),date:dateField(x.date,'Invoice date'),
-      dueDate:dateField(x.dueDate,'Due date')}));
+      dueDate:dateField(x.dueDate,'Due date'),taxCode:x.taxCode?stringField(x.taxCode,'Tax code',40).toUpperCase():null}));
     if(input.dueDate<input.date)fail(400,'Invoice due date precedes issue date');
     const sale=await tx(pool,async db=>{
       const r=await db.query(
@@ -213,18 +213,29 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
       if(exist.rowCount)fail(409,'Booking already invoiced');
       const amount=Number(b.agreed_price_paisa),cost=Number(b.purchase_cost_paisa);
       if(!Number.isSafeInteger(amount)||!Number.isSafeInteger(cost))fail(409,'Amounts exceed safe range');
-      const gl=await accounts(db,['1020301001','4010301001','5010401001','1020501001']);
+      let taxCode=null;
+      if(input.taxCode){
+        const r=await db.query('SELECT id,code,rate_bps FROM tax_codes WHERE company_id=$1 AND code=$2',[company,input.taxCode]);
+        if(!r.rowCount)fail(400,'Tax code is not configured for this company');
+        taxCode=r.rows[0];
+      }
+      const rate=taxCode?.rate_bps||0;
+      const tax=BigInt((BigInt(amount)*BigInt(rate)+5000n)/10000n);
+      if(BigInt(amount)+tax>BigInt(Number.MAX_SAFE_INTEGER))fail(409,'Invoice total exceeds safe amount');
+      const gl=await accounts(db,['1020301001','4010301001','5010401001','1020501001',...(tax>0n?['2010201001']:[])]);
       const reference=await nextDoc(db,'VI',input.date);
       const revenue=await journal(db,{date:input.date,departmentCode:'SALES',narrative:'Vehicle sales invoice '+reference,
         debit:gl.get('1020301001'),credit:gl.get('4010301001'),value:amount});
       const cogs=await journal(db,{date:input.date,departmentCode:'SALES',narrative:'Vehicle COGS '+reference,
         debit:gl.get('5010401001'),credit:gl.get('1020501001'),value:cost});
+      const taxPosting=tax>0n?await journal(db,{date:input.date,departmentCode:'SALES',narrative:'Vehicle sales tax '+reference,
+        debit:gl.get('1020301001'),credit:gl.get('2010201001'),value:Number(tax)}):null;
       const invoice=await db.query(
-        'INSERT INTO vehicle_sales_invoices(company_id,reference,booking_id,customer_id,vehicle_id,invoice_date,due_date,sales_amount_paisa,cogs_paisa,revenue_voucher_id,cogs_voucher_id,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id,reference',
-        [company,reference,b.id,b.customer_id,b.vehicle_id,input.date,input.dueDate,amount,cost,revenue.id,cogs.id,actor]);
+        'INSERT INTO vehicle_sales_invoices(company_id,reference,booking_id,customer_id,vehicle_id,invoice_date,due_date,sales_amount_paisa,cogs_paisa,revenue_voucher_id,cogs_voucher_id,created_by,tax_code_id,tax_rate_bps,sales_tax_paisa,tax_voucher_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id,reference',
+        [company,reference,b.id,b.customer_id,b.vehicle_id,input.date,input.dueDate,amount,cost,revenue.id,cogs.id,actor,taxCode?.id||null,rate,tax.toString(),taxPosting?.id||null]);
       await db.query("UPDATE vehicle_stock SET status='SOLD' WHERE company_id=$1 AND id=$2",[company,b.vehicle_id]);
       await audit(db,'VEHICLE_INVOICE_POSTED',invoice.rows[0].id,{reference,booking:b.booking_ref,revenue:revenue.number,cogs:cogs.number});
-      return {...invoice.rows[0],revenue_journal:revenue.number,cogs_journal:cogs.number};
+      return {...invoice.rows[0],revenue_journal:revenue.number,cogs_journal:cogs.number,tax_journal:taxPosting?.number||null,tax_paisa:tax.toString()};
     });
     send(res,201,sale);return true;
   }
@@ -235,10 +246,10 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
     const input=await read(x=>({amount:paisaField(x.amount,'Collection'),date:dateField(x.date,'Collection date'),
       clientKey:checkUuid(x.clientKey,fail,'Idempotency key')}));
     const result=await tx(pool,async db=>{
-      const r=await db.query('SELECT id,reference,sales_amount_paisa::text,paid_paisa::text FROM vehicle_sales_invoices WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,salesPayment[1]]);
+      const r=await db.query('SELECT id,reference,gross_amount_paisa::text,credited_net_paisa::text,credited_tax_paisa::text,paid_paisa::text FROM vehicle_sales_invoices WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,salesPayment[1]]);
       if(!r.rowCount)fail(404,'Sales invoice not found');
       const inv=r.rows[0];
-      if(BigInt(input.amount)>BigInt(inv.sales_amount_paisa)-BigInt(inv.paid_paisa))fail(409,'Collection exceeds outstanding sale amount');
+      if(BigInt(input.amount)>BigInt(inv.gross_amount_paisa)-BigInt(inv.credited_net_paisa)-BigInt(inv.credited_tax_paisa)-BigInt(inv.paid_paisa))fail(409,'Collection exceeds outstanding sale amount');
       const gl=await accounts(db,['1020402001','1020301001']);
       const ledger=await journal(db,{type:'BB/R',date:input.date,departmentCode:'FINANCE',
         narrative:'Vehicle invoice collection '+inv.reference,
@@ -255,15 +266,16 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
     mustFinance();
     const r=await pool.query(
       "SELECT a.code,coalesce(sum(CASE WHEN v.id IS NOT NULL THEN l.debit_paisa-l.credit_paisa ELSE 0 END),0)::text AS balance FROM accounts a LEFT JOIN voucher_lines l ON l.account_id=a.id AND l.company_id=a.company_id LEFT JOIN vouchers v ON v.id=l.voucher_id AND v.company_id=a.company_id AND v.status='POSTED' WHERE a.company_id=$1 AND a.code=ANY($2::text[]) GROUP BY a.code",
-      [company,['1020301001','2010101001','1020501001','1020601001']]);
+      [company,['1020301001','2010101001','1020501001','1020601001','2010201001']]);
     const gl=new Map(r.rows.map(x=>[x.code,BigInt(x.balance)]));
     const sum=async sql=>{
       const result=await pool.query(sql,[company]);
       return BigInt(result.rows[0].total);
     };
     const arService=await sum('SELECT coalesce(sum(labor_amount_paisa-paid_paisa),0)::text AS total FROM service_invoices WHERE company_id=$1');
-    const arVehicle=await sum('SELECT coalesce(sum(sales_amount_paisa-paid_paisa),0)::text AS total FROM vehicle_sales_invoices WHERE company_id=$1');
-    const ap=await sum('SELECT coalesce(sum(amount_paisa-paid_paisa),0)::text AS total FROM purchase_bills WHERE company_id=$1');
+    const arVehicle=await sum('SELECT coalesce(sum(gross_amount_paisa-credited_net_paisa-credited_tax_paisa-paid_paisa),0)::text AS total FROM vehicle_sales_invoices WHERE company_id=$1');
+    const ap=await sum('SELECT coalesce(sum(amount_paisa-credited_paisa-paid_paisa),0)::text AS total FROM purchase_bills WHERE company_id=$1');
+    const tax=await sum('SELECT coalesce(sum(sales_tax_paisa-credited_tax_paisa),0)::text AS total FROM vehicle_sales_invoices WHERE company_id=$1');
     const vin=await sum("SELECT coalesce(sum(purchase_cost_paisa),0)::text AS total FROM vehicle_stock WHERE company_id=$1 AND status IN ('IN_STOCK','RESERVED') AND acquisition_voucher_id IS NOT NULL");
     const parts=await sum("SELECT coalesce(sum(inventory_value_paisa),0)::text AS total FROM parts WHERE company_id=$1 AND valuation_mode='POSTED'");
     const legacyVehicles=await pool.query("SELECT count(*)::int AS total FROM vehicle_stock WHERE company_id=$1 AND acquisition_voucher_id IS NULL AND status IN ('IN_STOCK','RESERVED')",[company]);
@@ -272,7 +284,8 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
       {name:'Accounts Receivable',glCode:'1020301001',expected:arService+arVehicle,actual:gl.get('1020301001')||0n},
       {name:'Accounts Payable',glCode:'2010101001',expected:-ap,actual:gl.get('2010101001')||0n},
       {name:'Vehicle Inventory',glCode:'1020501001',expected:vin,actual:gl.get('1020501001')||0n},
-      {name:'Parts Inventory',glCode:'1020601001',expected:parts,actual:gl.get('1020601001')||0n}
+      {name:'Parts Inventory',glCode:'1020601001',expected:parts,actual:gl.get('1020601001')||0n},
+      {name:'Sales Tax Liability',glCode:'2010201001',expected:-tax,actual:gl.get('2010201001')||0n}
     ].map(x=>({name:x.name,gl_account:x.glCode,expected_paisa:x.expected.toString(),gl_paisa:x.actual.toString(),
       difference_paisa:(x.actual-x.expected).toString(),matched:x.actual===x.expected}));
     const unresolved_legacy={vehicles:legacyVehicles.rows[0].total,parts:legacyParts.rows[0].total};

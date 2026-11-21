@@ -2,6 +2,19 @@
 
 **Independent dealership management system** built separately from the AQVORA Enterprise ERP. The product target is equivalent, observed Dealer Pro business workflows, implemented from scratch with distinct branding. Not affiliated with CIBS or Dealer Pro.
 
+## Phase 5: Tax snapshots, returns, credit notes, vehicle delivery and reporting (Draft PR #5)
+
+**Original company-scoped workflows, not vendor source replication:**
+
+- **Tax code register:** Admin creates permanent jurisdiction-verified tax codes in basis points. Vehicle sales invoices snapshot a selected rate and post Dr Accounts Receivable / Cr Sales Tax Control separately. No default statutory rate or official tax-filing assumption.
+- **Supplier parts returns:** Only unreturned quantities in accounted purchase bills. Returns debit Supplier AP, credit weighted-average Parts Inventory, and separately recognize any purchase-price variance. Only unpaid supplier amounts may be credited (cash refunds are not built).
+- **Vehicle credit notes:** Unpaid price adjustments only. Dr Vehicle Revenue / Cr AR, with proportional Dr Sales Tax Control / Cr AR when a configured tax exists. This is **not** a physical vehicle return, cancelled invoice or refund.
+- **Vehicle handover records:** Sales/Admin may issue one immutable delivery note for a fully settled vehicle invoice. The handover is not vehicle registration or a legal title transfer.
+- **Reports:** Current AP Aging, tax accrual/GL comparison, vehicle gross margin and updated AR Aging/control reconciliation. The reports are not certified financial statements and do not create statutory tax filings.
+- **Safety:** Source-linked voucher reversal remains blocked, no cross-company document references, posted source tables are append-only, duplicate idempotency keys are rejected, and accounting happens atomically with source changes.
+
+See [Phase 5 workflow limitations](docs/PHASE5_WORKFLOWS.md). Start with fake demo data only; the code has not undergone external financial/security assurance. Production deployment, company data imports and merges are **not** part of this PR. Review stacked PR #1 → #2 → #3 → #4 → #5 in dependency order.
+
 ## Phase 4: Accounted purchasing, vehicle invoicing and financial controls (Draft PR #4)
 
 The next stacked branch introduces:
@@ -69,3 +82,5 @@ Before any actual enterprise use: HTTPS and NODE_ENV=production, managed secret 
 Follow docs/DEALER_PRO_PARITY.md for observed reference inventory, docs/AUTOMOTIVE_PHASE3.md for current capabilities, and docs/SECURITY_AND_ARCHITECTURE.md for security guardrails. Review PR #2 before stacking PR #3 onto main.
 
 For existing companies upgrading from Phase 3, configure PHASE4_COMPANY_CODE and run npm run db:controls to install only the new control accounts without changing user credentials.
+
+Phase 5 setup: After migration, ensure control accounts 2010201001 (Sales Tax Control) and 5010601001 (Purchase Price Variance) exist in every upgraded company; run npm run db:controls with PHASE4_COMPANY_CODE set to that company. Tax rates must be established from legally verified local requirements—no official tax defaults are shipped.

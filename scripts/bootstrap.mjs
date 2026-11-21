@@ -26,7 +26,9 @@ try{
     ['1020601001','SPARE PARTS INVENTORY - CONTROL','ASSET'],
     ['4010301001','VEHICLE SALES REVENUE','INCOME'],
     ['5010401001','COST OF VEHICLES SOLD','EXPENSE'],
-    ['5010501001','PARTS CONSUMPTION / COGS','EXPENSE']
+    ['5010501001','PARTS CONSUMPTION / COGS','EXPENSE'],
+    ['5010601001','PURCHASE PRICE VARIANCE','EXPENSE'],
+    ['2010201001','SALES TAX CONTROL','LIABILITY']
   ];
   for(const [a,b,c] of defaultAccounts)await db.query(
     'INSERT INTO accounts(company_id,code,name,kind) VALUES($1,$2,$3,$4) ON CONFLICT(company_id,code) DO NOTHING',[company,a,b,c]);
