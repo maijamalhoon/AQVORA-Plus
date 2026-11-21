@@ -191,8 +191,8 @@ BEGIN
      RAISE EXCEPTION 'Purchase bill paid and credit amounts must match immutable history';
    END IF;
  ELSE
-   IF (to_jsonb(NEW) - 'paid_paisa' - 'credited_net_paisa' - 'credited_tax_paisa')
-     IS DISTINCT FROM (to_jsonb(OLD) - 'paid_paisa' - 'credited_net_paisa' - 'credited_tax_paisa') THEN
+   IF (to_jsonb(NEW) - 'paid_paisa' - 'credited_net_paisa' - 'credited_tax_paisa' - 'gross_amount_paisa')
+     IS DISTINCT FROM (to_jsonb(OLD) - 'paid_paisa' - 'credited_net_paisa' - 'credited_tax_paisa' - 'gross_amount_paisa') THEN
      RAISE EXCEPTION 'Posted vehicle invoice fields cannot be changed';
    END IF;
    SELECT coalesce(sum(amount_paisa),0) INTO paid_total FROM vehicle_sales_payments
