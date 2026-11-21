@@ -2,6 +2,21 @@
 
 **Independent dealership management system** built separately from the AQVORA Enterprise ERP. The product target is equivalent, observed Dealer Pro business workflows, implemented from scratch with distinct branding. Not affiliated with CIBS or Dealer Pro.
 
+## Phase 7: Supplier parts return, confirmed bank refund and approval limits (Draft PR #7)
+
+A narrowly-scoped **maker-checker supplier refund** is now available for accounted, fully paid **parts purchase bills without prior returns**.
+
+- **Admin** sets a company-level maximum per supplier refund. No policy means no refund can be requested or executed. Lowering the limit also blocks already-approved but unexecuted requests above the new amount.
+- **Finance** requests a parts return/refund with a documented reason. The request records the invoice-based credit value and requires original parts stock to remain on hand.
+- A **different Admin** approves or rejects the request. Finance records a separately verified **bank receipt reference** before executing it.
+- Execution atomically posts: supplier return Dr AP / Cr Parts Inventory (plus any moving-average Purchase Price Variance) and supplier refund receipt Dr Bank / Cr AP. It also updates stock quantity/value, immutable supplier-return records, refund receipts, bill refund/credit totals and the audit log.
+- **AP Aging and reconciliation** include bank refunds alongside posted invoices, purchase returns and supplier payments.
+- New supplier refund approval queue and audit screens; automated PostgreSQL tests for dual authorization, per-company limits, duplicate prevention and balanced accounting.
+
+**Financial/operational limitations:** The system records the bank receipt entered by Finance; it does **not** contact a bank or confirm funds. The returned quantity is deducted from pooled weighted-average stock; there is no lot-specific physical return verification. Only fully paid parts bills with no earlier returns qualify. Partially paid invoice returns with refunds, vehicle purchases, full vehicle returns, supplier payments to account for advances, government tax compliance and live settlement integrations are still pending. Never enter actual customer/supplier banking data or use real money in this prototype.
+
+See [Phase 7 supplier refund controls](docs/PHASE7_SUPPLIER_REFUNDS.md). PR #7 stacks on PR #6 and requires full review before merge or deployment.
+
 ## Phase 6: Dual-control vehicle price refunds and source audit (Draft PR #6)
 
 This original implementation supports a **narrow, traceable customer refund** when a vehicle sale invoice was already paid and the dealership later agrees to a partial price reduction.
