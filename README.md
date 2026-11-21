@@ -95,9 +95,9 @@ Requires Node.js 22+ and a NEW, dedicated PostgreSQL 15+ database. Never point a
 
 1. npm install
 2. Set DATABASE_URL in your environment, e.g. postgres://postgres:password@localhost:5432/aqvora_plus
-3. npm run db:migrate (version-tracked, applies migrations 001–003; compatible with a complete Phase 2 installation).
-4. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD (12+ characters), optionally BOOTSTRAP_COMPANY_CODE and BOOTSTRAP_COMPANY_NAME.
-5. npm run db:bootstrap (fresh company only; re-running resets its admin password)
+3. npm run db:migrate (versioned migrations 001–007, only on a backed-up, isolated AQVORA Plus database).
+4. Set all four required variables: BOOTSTRAP_COMPANY_CODE (new), BOOTSTRAP_COMPANY_NAME, BOOTSTRAP_ADMIN_EMAIL (new user) and BOOTSTRAP_ADMIN_PASSWORD (12–256 characters).
+5. npm run db:bootstrap (CREATE ONLY: repeat runs and existing user emails are rejected; this never resets credentials, renames companies or changes roles)
 6. Remove bootstrap password from your environment.
 7. npm start — open http://localhost:3000
 8. npm run check and npm test (Postgres integration enabled with DATABASE_URL).
@@ -124,3 +124,5 @@ Follow docs/DEALER_PRO_PARITY.md for observed reference inventory, docs/AUTOMOTI
 For existing companies upgrading from Phase 3, configure PHASE4_COMPANY_CODE and run npm run db:controls to install only the new control accounts without changing user credentials.
 
 Phase 5 setup: After migration, ensure control accounts 2010201001 (Sales Tax Control) and 5010601001 (Purchase Price Variance) exist in every upgraded company; run npm run db:controls with PHASE4_COMPANY_CODE set to that company. Tax rates must be established from legally verified local requirements—no official tax defaults are shipped.
+
+**Release gate:** Run npm run release:check for the development readiness report. This prototype does not declare production readiness. See docs/RELEASE_READINESS.md.
