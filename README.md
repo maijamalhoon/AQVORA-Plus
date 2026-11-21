@@ -2,6 +2,16 @@
 
 **Independent dealership management system** built separately from the AQVORA Enterprise ERP. The product target is equivalent, observed Dealer Pro business workflows, implemented from scratch with distinct branding. Not affiliated with CIBS or Dealer Pro.
 
+## Phase 8: Source-controlled ledger safety audit (Draft PR #8)
+
+**Critical accounting safeguard:** General-purpose manual vouchers now reject posting against the source-controlled trade AR, trade AP, vehicle inventory, spare-parts inventory, and sales-tax GL accounts. These account balances must be changed through their company-scoped invoice, settlement, purchase, return, stock or credit-note workflows so subledgers remain auditable.
+
+The restriction applies at **manual draft creation and manual posting of historic drafts**. System-generated, source-linked financial documents continue using their dedicated journal paths. Ordinary general-journal expenses and other non-reserved accounts remain supported.
+
+Malformed logins and voucher validation now produce clear **400 Bad Request** responses rather than generic server failures. PostgreSQL-backed regression tests cover malformed input, role/tenant isolation, reserved-account rejection, legacy draft posting and unchanged ordinary JV behavior.
+
+See [Phase 8 audit and unresolved risks](docs/PHASE8_ACCOUNTING_SECURITY_AUDIT.md). **This remains non-production development software** pending finance/security review, migrations, user acceptance testing and merging the preceding stacked PRs.
+
 ## Phase 7: Supplier parts return, confirmed bank refund and approval limits (Draft PR #7)
 
 A narrowly-scoped **maker-checker supplier refund** is now available for accounted, fully paid **parts purchase bills without prior returns**.

@@ -131,7 +131,9 @@ function voucherRegister(){
 }
 let lineCount=2;
 function lineRow(i,values={}){
-  const options=state.accounts.map(a=>'<option value="'+esc(a.code)+'" '+((values.accountCode||state.accounts[i%state.accounts.length]?.code)===a.code?'selected':'')+'>'+esc(a.code)+' — '+esc(a.name)+'</option>').join('');
+  const available=state.accounts.filter(a=>a.manual_entry_allowed!==false);
+  const preferred=values.accountCode||available[i%available.length]?.code;
+  const options=available.map(a=>'<option value="'+esc(a.code)+'" '+(preferred===a.code?'selected':'')+'>'+esc(a.code)+' — '+esc(a.name)+'</option>').join('');
   return '<tr><td>'+(i+1)+'</td><td><select aria-label="Line '+(i+1)+' account" class="line-account">'+options+'</select></td>'+
     '<td><input type="text" aria-label="Line '+(i+1)+' debit" class="line-debit" inputmode="decimal" value="'+esc(values.debit||'0')+'"/></td>'+
     '<td><input type="text" aria-label="Line '+(i+1)+' credit" class="line-credit" inputmode="decimal" value="'+esc(values.credit||'0')+'"/></td>'+
@@ -153,6 +155,7 @@ function updateTotals(){
 }
 function newVoucher(){
   if(!editor())return '<div class="banner">This role does not allow voucher posting.</div>';
+  if(!state.accounts.some(a=>a.manual_entry_allowed!==false))return '<div class="banner">There are no manual voucher accounts configured. Use the source-specific finance modules for AR, AP, inventory and tax postings.</div>';
   const type=state.page.slice(4);
   const typeOptions=documents.map(([t,label])=>'<option value="'+esc(t)+'" '+(t===type?'selected':'')+'>'+esc(label)+'</option>').join('');
   const departments=state.departments.map(d=>'<option value="'+esc(d.code)+'">'+esc(d.name)+'</option>').join('');
