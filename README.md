@@ -2,6 +2,20 @@
 
 **Independent dealership management system** built separately from the AQVORA Enterprise ERP. The product target is equivalent, observed Dealer Pro business workflows, implemented from scratch with distinct branding. Not affiliated with CIBS or Dealer Pro.
 
+## Phase 4: Accounted purchasing, vehicle invoicing and financial controls (Draft PR #4)
+
+The next stacked branch introduces:
+- Supplier master, purchase bills and supplier settlements posted to Accounts Payable.
+- Vehicle acquisition inventory and booked vehicle invoices with revenue and COGS postings.
+- Parts purchases, weighted-average inventory costing, financially posted parts issues to service jobs, and exact carrying-value allocation.
+- Vehicle sales invoice collections, combined vehicle/service AR aging, and control-account reconciliation.
+- Additional security guards: source-linked journal reversal restrictions, legacy inventory segregation, payment idempotency keys, and transactional posting.
+- Frontend screens for invoice and purchase documents, inventory valuation and reconciliation.
+
+**Not production ready.** The work is still pending credit notes, purchase returns, full tax and financing, dealership delivery/legal forms, order/GRN multi-line flows, source-adjustments, historic inventory migrations and full reports. Do not enter production data.
+
+See [Phase 4 accounting controls](docs/PHASE4_FINANCIAL_CONTROLS.md). After PR #2 and #3 are reviewed/merged, review PR #4.
+
 ## Phase 3: Automotive operations and receivables (Draft PR #3)
 
 This stacked development branch adds working **customer master, customer vehicles, new-vehicle stock, sales reservations, service job cards, parts receipts/issues, labor-only service invoices, customer payments and current AR aging**. The new browser screens are role-aware, backed by separate company-scoped PostgreSQL tables and server routes. Stock reservation and stock decrement use row-locked transactions; invoice/receipt operations post balanced journals in the same database transaction.
@@ -28,9 +42,9 @@ Requires Node.js 22+ and a NEW, dedicated PostgreSQL 15+ database. Never point a
 
 1. npm install
 2. Set DATABASE_URL in your environment, e.g. postgres://postgres:password@localhost:5432/aqvora_plus
-3. npm run db:migrate (version-tracked, idempotent on fresh or fully initialized Phase 2 databases).
+3. npm run db:migrate (version-tracked, applies migrations 001–003; compatible with a complete Phase 2 installation).
 4. Set BOOTSTRAP_ADMIN_EMAIL and BOOTSTRAP_ADMIN_PASSWORD (12+ characters), optionally BOOTSTRAP_COMPANY_CODE and BOOTSTRAP_COMPANY_NAME.
-5. npm run db:bootstrap
+5. npm run db:bootstrap (fresh company only; re-running resets its admin password)
 6. Remove bootstrap password from your environment.
 7. npm start — open http://localhost:3000
 8. npm run check and npm test (Postgres integration enabled with DATABASE_URL).
@@ -53,3 +67,5 @@ Mutation requests require X-AQVORA-Request: 1 and same-origin access. Server enf
 Before any actual enterprise use: HTTPS and NODE_ENV=production, managed secret storage, distributed login throttling, multi-factor authentication for administrators, permission administration, auditable approvals, production migration tooling, DB backups with restore drills, threat modeling, cross-company penetration tests, reliable financial reporting, deployment hardening and observability. The in-memory login throttle is only a single-process guard.
 
 Follow docs/DEALER_PRO_PARITY.md for observed reference inventory, docs/AUTOMOTIVE_PHASE3.md for current capabilities, and docs/SECURITY_AND_ARCHITECTURE.md for security guardrails. Review PR #2 before stacking PR #3 onto main.
+
+For existing companies upgrading from Phase 3, configure PHASE4_COMPANY_CODE and run npm run db:controls to install only the new control accounts without changing user credentials.

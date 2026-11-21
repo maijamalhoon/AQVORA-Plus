@@ -127,6 +127,8 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
       const r=await db.query('SELECT id,vehicle_id,status,reference FROM sales_bookings WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,cancel[1]]);
       if(!r.rowCount)fail(404,'Booking not found');
       if(r.rows[0].status!=='BOOKED')fail(409,'Booking has already been cancelled');
+      const sold=await db.query('SELECT id FROM vehicle_sales_invoices WHERE company_id=$1 AND booking_id=$2',[company,cancel[1]]);
+      if(sold.rowCount)fail(409,'Cannot cancel an invoiced vehicle booking');
       await db.query("UPDATE sales_bookings SET status='CANCELLED',cancelled_at=now() WHERE company_id=$1 AND id=$2",[company,cancel[1]]);
       await db.query("UPDATE vehicle_stock SET status='IN_STOCK' WHERE company_id=$1 AND id=$2",[company,r.rows[0].vehicle_id]);
       await audit(db,'VEHICLE_BOOKING_CANCELLED',cancel[1],{reference:r.rows[0].reference});
@@ -173,7 +175,7 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
   // Parts stock ledger. Stock movements are immutable, no negative stock allowed.
   if(path==='/api/auto/parts'&&isGet){
     permitted('parts_read');
-    const r=await pool.query('SELECT id,sku,name,unit_cost_paisa::text,stock_qty FROM parts WHERE company_id=$1 ORDER BY sku LIMIT 300',[company]);
+    const r=await pool.query('SELECT id,sku,name,unit_cost_paisa::text,stock_qty,inventory_value_paisa::text,valuation_mode FROM parts WHERE company_id=$1 ORDER BY sku LIMIT 300',[company]);
     send(res,200,{parts:r.rows});return true;
   }
   if(path==='/api/auto/parts'&&isPost){
@@ -203,9 +205,10 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
         unitCost:direction==='RECEIPT'?paisaField(x.unitCost,'Unit purchase cost'):null};
     });
     const result=await tx(pool,async db=>{
-      const part=await db.query('SELECT id,sku,stock_qty,unit_cost_paisa::text FROM parts WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,input.partId]);
+      const part=await db.query('SELECT id,sku,stock_qty,unit_cost_paisa::text,valuation_mode FROM parts WHERE company_id=$1 AND id=$2 FOR UPDATE',[company,input.partId]);
       if(!part.rowCount)fail(404,'Part not found');
       const current=part.rows[0];
+      if(current.valuation_mode==='POSTED')fail(409,'Accounted inventory must use financially posted Finance procurement/issue routes');
       if(input.direction==='ISSUE'){
         if(current.stock_qty<input.quantity)fail(409,'Insufficient available stock');
         const job=await db.query('SELECT status FROM service_jobs WHERE company_id=$1 AND id=$2',[company,input.jobId]);
@@ -284,7 +287,15 @@ export async function handleAutomotiveApi({req,res,pool,ctx,uri,path,send,fail,r
   if(path==='/api/reports/ar-aging'&&isGet){
     permitted('ar_read');
     const r=await pool.query(
-      'SELECT i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,i.labor_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.labor_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue FROM service_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id WHERE i.company_id=$1 AND i.paid_paisa<i.labor_amount_paisa ORDER BY i.due_date,i.reference LIMIT 300',
+      "SELECT 'SERVICE' AS invoice_type,i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,"+
+      "i.labor_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.labor_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue "+
+      "FROM service_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id "+
+      "WHERE i.company_id=$1 AND i.paid_paisa<i.labor_amount_paisa "+
+      "UNION ALL "+
+      "SELECT 'VEHICLE' AS invoice_type,i.reference,i.invoice_date::text,i.due_date::text,c.name AS customer_name,"+
+      "i.sales_amount_paisa::text AS total_paisa,i.paid_paisa::text,(i.sales_amount_paisa-i.paid_paisa)::text AS outstanding_paisa,GREATEST(0,CURRENT_DATE-i.due_date) AS days_overdue "+
+      "FROM vehicle_sales_invoices i JOIN customers c ON c.company_id=i.company_id AND c.id=i.customer_id "+
+      "WHERE i.company_id=$1 AND i.paid_paisa<i.sales_amount_paisa ORDER BY due_date,reference LIMIT 300",
       [company]);
     send(res,200,{rows:r.rows,scope:'CURRENT_OUTSTANDING_ONLY',as_of:todayUTC()});return true;
   }

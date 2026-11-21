@@ -41,7 +41,14 @@ function navigation(){
     {id:'auto:stock-movements',text:'Stock Movements',group:'Parts Operations',roles:['ADMIN','PARTS','SERVICE','FINANCE']},
     {id:'auto:ar-aging',text:'AR Aging',group:'Financial Reports',roles:['ADMIN','FINANCE']}
   ];
-  modules.filter(x=>x.roles.includes(state.selected.role)).forEach(x=>items.push(x));
+  const controls=[
+    {id:'fin4:suppliers',text:'Suppliers',group:'Master Data / Finance',roles:['ADMIN','FINANCE']},
+    {id:'fin4:purchases',text:'Purchase Bills / Payables',group:'Financials / Procurement',roles:['ADMIN','FINANCE']},
+    {id:'fin4:sales',text:'Vehicle Sales Invoices',group:'Sales Operations',roles:['ADMIN','FINANCE','SALES']},
+    {id:'fin4:parts',text:'Parts Valuation & COGS',group:'Parts Operations',roles:['ADMIN','FINANCE','PARTS']},
+    {id:'fin4:reconciliation',text:'Control Reconciliation',group:'Financial Reports',roles:['ADMIN','FINANCE']}
+  ];
+  modules.concat(controls).filter(x=>x.roles.includes(state.selected.role)).forEach(x=>items.push(x));
   Object.entries(operations).forEach(([dep,labels])=>{
     if(state.selected.role==='ADMIN'||state.selected.role===dep)
       labels.forEach(text=>items.push({id:'planned:'+dep+':'+text,text,group:dep+' Operations',planned:true}));
@@ -195,7 +202,7 @@ function render(){
   $('breadcrumb-section').textContent=found.group.toUpperCase();
   $('page-subtitle').textContent=p.startsWith('new:')?'Create a voucher with balanced debit and credit lines':'Dealership management workspace';
   renderNav();
-  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):
+  $('view').innerHTML=p==='dashboard'?dashboard():p==='vouchers'?voucherRegister():p.startsWith('new:')?newVoucher():p==='trial'?trial():p==='ledger'?ledger():p==='audit'?audit():p==='detail'?detail():p.startsWith('auto:')?window.AQVORA_AUTO.render(p,state.selected.role):p.startsWith('fin4:')?window.AQVORA_FIN4.render(p,state.selected.role):
     '<div class="banner"><strong>Planned feature — '+esc(found.text)+'</strong>This function is part of the Dealer Pro parity roadmap, but is not implemented in this development release.</div>';
   if(p.startsWith('new:'))updateTotals();
 }
@@ -210,6 +217,7 @@ async function open(page){
     }
     if(page==='audit')state.audit=(await api('/api/audit')).events;
     if(page.startsWith('auto:'))await window.AQVORA_AUTO.load(page,api);
+    if(page.startsWith('fin4:'))await window.AQVORA_FIN4.load(page,api);
   }catch(e){notify(e.message,true);}
   render();
 }
@@ -292,6 +300,7 @@ $('nav').addEventListener('click',event=>{
 $('view').addEventListener('submit',event=>{
   if(event.target.id==='voucher-form')saveVoucher(event);
   if(event.target.id==='auto-form')window.AQVORA_AUTO.submit(event,{post,open,notify});
+  if(event.target.id==='fin4-form')window.AQVORA_FIN4.submit(event,{post,open,notify});
 });
 $('view').addEventListener('input',event=>{if(event.target.closest('#entry-lines'))updateTotals();});
 $('view').addEventListener('click',async event=>{
@@ -299,6 +308,7 @@ $('view').addEventListener('click',async event=>{
   const b=event.target.closest('[data-action]');if(!b)return;
   const act=b.dataset.action;
   if(act.startsWith('auto:')){await window.AQVORA_AUTO.act(act.slice(5),b.dataset.id,{post,open,notify});return;}
+  if(act.startsWith('fin4:')){await window.AQVORA_FIN4.act(act.slice(5),b.dataset.id,{post,open,notify});return;}
   if(['view','post','reverse'].includes(act)){await voucherAction(act,b.dataset.id);return;}
   if(act==='new-jv'){await open('new:JV');return;}
   if(act==='go-vouchers'){await open('vouchers');return;}
