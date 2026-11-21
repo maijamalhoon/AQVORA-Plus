@@ -130,3 +130,5 @@ Phase 5 setup: After migration, ensure control accounts 2010201001 (Sales Tax Co
 ### Phase 10 — Staff onboarding and first-login credentials
 
 Admin → Staff & Permissions can create new non-Admin staff accounts in the selected company. A user cannot access accounting or operations using a temporary password: they must rotate it at first sign-in, after which all previous sessions are revoked. Duplicate emails and cross-company silent memberships are rejected. This is a development workflow, **not** enterprise SSO, MFA or a vetted invitation system.
+
+For a local Windows development setup, see docs/WINDOWS_DEMO_QUICKSTART.md. The checked-in .env.example uses placeholders only; keep real credentials outside Git.
