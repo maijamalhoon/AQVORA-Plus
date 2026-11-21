@@ -155,7 +155,7 @@ export async function handlePhase4Api({req,res,pool,ctx,uri,path,send,fail,readJ
       const ledger=await journal(db,{date:input.date,departmentCode:'PARTS',narrative:'Accounted stock issue '+input.reference,
         debit:gl.get('5010501001'),credit:gl.get('1020601001'),value:Number(issueCost)});
       const movement=await db.query(
-        'INSERT INTO stock_movements(company_id,part_id,direction,quantity,unit_cost_paisa,reference,job_id,created_by,accounting_voucher_id,cost_total_paisa) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+        'INSERT INTO stock_movements(company_id,part_id,direction,quantity,unit_cost_paisa,reference,job_id,created_by,accounting_voucher_id,cost_total_paisa) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id',
         [company,input.partId,'ISSUE',input.quantity,(issueCost+use/2n)/use,input.reference,input.jobId,actor,ledger.id,issueCost]);
       const remaining=value-issueCost,remainingQty=p.stock_qty-input.quantity;
       const avg=remainingQty?(remaining+BigInt(remainingQty)/2n)/BigInt(remainingQty):0n;
