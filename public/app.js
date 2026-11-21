@@ -399,3 +399,14 @@ $('view').addEventListener('click',async event=>{
   }
 });
 (async()=>{try{await refresh();}catch{showLogin();}})();
+(async()=>{
+  try{
+    const response=await fetch('/api/demo-status',{cache:'no-store'});
+    if(!response.ok)return;
+    const info=await response.json();
+    const status=$('demo-status');
+    if(status && info.workingDemo!==true){
+      status.textContent=info.message||'The demo requires a new, isolated PostgreSQL database.';
+    }
+  }catch{/* Health is advisory; login and server permissions remain authoritative. */}
+})();

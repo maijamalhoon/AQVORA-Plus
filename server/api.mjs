@@ -318,18 +318,26 @@ async function route(req,res,pool,production){
   }
   return send(res,404,{error:'Not found'});
 }
-export function createApp(pool,{production=false}={}){
-  return createServer(async (req,res)=>{
+// A shared Node request handler works under both the local HTTP server and
+// Vercel's Express adapter without starting a listening TCP server in a Lambda.
+export function createRequestHandler(pool,{production=false}={}){
+  return async (req,res)=>{
     secureHeaders(res);
     try{await route(req,res,pool,production);}
     catch(error){
       const status=error instanceof HttpError?error.status:error?.code==='23505'?409:['23503','23514','22P02','22003'].includes(error?.code)?400:500;
       if(status===500)console.error('AQVORA Plus server failure',error);
-      send(res,status,{error:error instanceof HttpError?error.message:status===409?'Conflicting record':status===400?'Invalid data':'Internal server error'});
+      if(!res.headersSent)send(res,status,{error:error instanceof HttpError?error.message:status===409?'Conflicting record':status===400?'Invalid data':'Internal server error'});
+      else res.end();
     }
-  });
+  };
+}
+export function createApp(pool,options={}){
+  return createServer(createRequestHandler(pool,options));
 }
 export function poolFromEnv(){
   if(!process.env.DATABASE_URL)throw Error('DATABASE_URL must point to a dedicated AQVORA Plus database');
-  return new Pool({connectionString:process.env.DATABASE_URL,max:10});
+  const configured=Number(process.env.PG_POOL_MAX|| (process.env.VERCEL?'2':'10'));
+  const max=Number.isInteger(configured)&&configured>=1&&configured<=10?configured:2;
+  return new Pool({connectionString:process.env.DATABASE_URL,max,idleTimeoutMillis:10000,connectionTimeoutMillis:9000});
 }
